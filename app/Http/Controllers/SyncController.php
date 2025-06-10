@@ -113,15 +113,14 @@ class SyncController extends Controller
         ]);
 
 
-        foreach ($request->all() as $data) {
-            Device::updateOrCreate(
-                ['deviceId' => $data['deviceId'] ?? null],
-                [
-                    'model' => $data['model'],
-                    'batteryLevel' => $data['batteryLevel'],
-                ]
-            );
-        }
+        $data = $request->all();
+        Device::updateOrCreate(
+            ['deviceId' => $data['deviceId'] ?? null],
+            [
+                'model' => $data['model'] ?? null,
+                'batteryLevel' => $data['batteryLevel'] ?? null,
+            ]
+        );
 
 
         return response()->json(['status' => 'ok']);
