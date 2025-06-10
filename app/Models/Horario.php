@@ -13,4 +13,10 @@ class Horario extends Model
         'horaFin',
         'isActive',
     ];
+
+    protected $casts = [
+        'diasDeSemana' => 'array',
+        'isActive' => 'boolean',
+    ];
+
 }

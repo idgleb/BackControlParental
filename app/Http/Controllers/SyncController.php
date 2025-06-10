@@ -42,7 +42,7 @@ class SyncController extends Controller
                 ['id' => $data['id'] ?? null],
                 [
                     'nombreDeHorario' => $data['nombreDeHorario'],
-                    'diasDeSemana' => json_encode($data['diasDeSemana']),
+                    'diasDeSemana' => $data['diasDeSemana'],
                     'horaInicio' => $data['horaInicio'],
                     'horaFin' => $data['horaFin'],
                     'isActive' => $data['isActive'],
