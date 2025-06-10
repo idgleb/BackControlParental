@@ -41,11 +41,11 @@ class SyncController extends Controller
             Horario::updateOrCreate(
                 ['id' => $data['id'] ?? null],
                 [
-                    'nombre_de_horario' => $data['nombreDeHorario'],
-                    'dias_de_semana' => json_encode($data['diasDeSemana']),
-                    'hora_inicio' => $data['horaInicio'],
-                    'hora_fin' => $data['horaFin'],
-                    'is_active' => $data['isActive'],
+                    'nombreDeHorario' => $data['nombreDeHorario'],
+                    'diasDeSemana' => json_encode($data['diasDeSemana']),
+                    'horaInicio' => $data['horaInicio'],
+                    'horaFin' => $data['horaFin'],
+                    'isActive' => $data['isActive'],
                 ]
             );
         }

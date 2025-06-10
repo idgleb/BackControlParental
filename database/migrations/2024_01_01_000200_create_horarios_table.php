@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('horarios', function (Blueprint $table) {
             $table->id();
-            $table->string('nombre_de_horario');
-            $table->json('dias_de_semana');
-            $table->string('hora_inicio');
-            $table->string('hora_fin');
-            $table->boolean('is_active');
+            $table->string('nombreDeHorario');
+            $table->json('diasDeSemana');
+            $table->string('horaInicio');
+            $table->string('horaFin');
+            $table->boolean('isActive');
             $table->timestamps();
         });
     }
