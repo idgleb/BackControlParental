@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        Schema::dropIfExists('device_apps');
         Schema::create('device_apps', function (Blueprint $table) {
             $table->id();
             $table->string('deviceId');
