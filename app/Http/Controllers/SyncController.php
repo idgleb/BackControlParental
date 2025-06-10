@@ -59,18 +59,23 @@ class SyncController extends Controller
 
     public function postHorarios(Request $request)
     {
-        foreach ($request->all() as $data) {
-            Horario::updateOrCreate(
-                ['id' => $data['id'] ?? null],
-                [
-                    'nombreDeHorario' => $data['nombreDeHorario'],
-                    'diasDeSemana' => $data['diasDeSemana'],
-                    'horaInicio' => $data['horaInicio'],
-                    'horaFin' => $data['horaFin'],
-                    'isActive' => $data['isActive'],
-                ]
-            );
-        }
+        DB::transaction(function () use ($request) {
+            // Clear existing records without leaving the transaction
+            DB::table('horarios')->delete();
+
+            foreach ($request->all() as $data) {
+                Horario::updateOrCreate(
+                    ['id' => $data['id'] ?? null],
+                    [
+                        'nombreDeHorario' => $data['nombreDeHorario'],
+                        'diasDeSemana' => $data['diasDeSemana'],
+                        'horaInicio' => $data['horaInicio'],
+                        'horaFin' => $data['horaFin'],
+                        'isActive' => $data['isActive'],
+                    ]
+                );
+            }
+        });
 
         return response()->json(['status' => 'ok']);
     }
