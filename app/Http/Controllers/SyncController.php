@@ -17,7 +17,7 @@ class SyncController extends Controller
     public function postApps(Request $request)
     {
         DB::transaction(function () use ($request) {
-            DB::table('device_apps')->truncate();
+            DB::table('device_apps')->delete();
             foreach ($request->all() as $data) {
                 $icon = $data['appIcon'] ?? null;
                 if (is_array($icon)) {
