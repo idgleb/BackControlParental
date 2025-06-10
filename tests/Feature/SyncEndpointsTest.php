@@ -34,6 +34,7 @@ class SyncEndpointsTest extends TestCase
     {
         $payload = [
             [
+                'deviceId' => 'device1',
                 'packageName' => 'com.example.app',
                 'appName' => 'Example',
                 'appIcon' => base64_encode('icon'),

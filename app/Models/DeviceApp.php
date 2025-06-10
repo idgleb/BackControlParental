@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class DeviceApp extends Model
 {
     protected $fillable = [
+        'deviceId',
         'packageName',
         'appName',
         'appIcon',

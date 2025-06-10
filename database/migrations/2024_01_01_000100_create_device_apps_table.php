@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('device_apps', function (Blueprint $table) {
             $table->id();
-            $table->string('packageName')->unique();
-            $table->string('appName');
+            $table->string('deviceId');
+            $table->string('packageName');
             $table->binary('appIcon')->nullable();
             $table->string('appCategory');
             $table->string('contentRating');
@@ -20,6 +20,7 @@ return new class extends Migration
             $table->unsignedBigInteger('timeStempUsageTimeToday');
             $table->string('appStatus');
             $table->integer('dailyUsageLimitMinutes');
+            $table->unique(['deviceId', 'packageName']);
             $table->timestamps();
         });
     }

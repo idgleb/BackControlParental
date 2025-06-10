@@ -37,8 +37,8 @@ class SyncController extends Controller
                     $icon = base64_encode(pack('C*', ...$icon));
                 }
                 DeviceApp::updateOrCreate(
-                    ['packageName' => $data['packageName']],
-                    [
+                    ['deviceId' => $data['deviceId'], 'packageName' => $data['packageName']],
+                    ['deviceId' => $data['deviceId'],
                         'appName' => $data['appName'],
                         'appIcon' => $icon,
                         'appCategory' => $this->stringify($data['appCategory']),
