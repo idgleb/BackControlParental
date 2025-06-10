@@ -20,6 +20,14 @@ class SyncEndpointsTest extends TestCase
         $response->assertStatus(200);
     }
 
+    /** @test */
+    public function devices_endpoint_returns_successful_response(): void
+    {
+        $response = $this->get('/api/sync/devices');
+        $response->assertStatus(200);
+    }
+
+
 
     /** @test */
     public function apps_post_endpoint_accepts_new_fields(): void
@@ -40,6 +48,21 @@ class SyncEndpointsTest extends TestCase
         ];
 
         $response = $this->postJson('/api/sync/apps', $payload);
+        $response->assertStatus(200);
+    }
+
+    /** @test */
+    public function devices_post_endpoint_accepts_new_fields(): void
+    {
+        $payload = [
+            [
+                'deviceId' => 'abc123',
+                'model' => 'Pixel',
+                'batteryLevel' => 50,
+            ]
+        ];
+
+        $response = $this->postJson('/api/sync/devices', $payload);
         $response->assertStatus(200);
     }
 

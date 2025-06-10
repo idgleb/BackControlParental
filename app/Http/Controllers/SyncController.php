@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DeviceApp;
 use App\Models\Horario;
+use App\Models\Device;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -79,4 +80,33 @@ class SyncController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
+
+
+    public function getDevices()
+    {
+        return Device::all();
+    }
+
+    public function postDevices(Request $request)
+    {
+        DB::transaction(function () use ($request) {
+            DB::table('devices')->delete();
+
+            foreach ($request->all() as $data) {
+                Device::updateOrCreate(
+                    ['deviceId' => $data['deviceId'] ?? null],
+                    [
+                        'model' => $data['model'] ?? null,
+                        'batteryLevel' => $data['batteryLevel'] ?? null,
+                    ]
+                );
+            }
+        });
+
+        return response()->json(['status' => 'ok']);
+    }
+
+
+
+
 }
