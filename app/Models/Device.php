@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\DeviceApp;
 
 class Device extends Model
 {
@@ -11,4 +13,16 @@ class Device extends Model
         'model',
         'batteryLevel',
     ];
+
+    protected static function booted()
+    {
+        static::deleting(function (Device $device) {
+            $device->apps()->delete();
+        });
+    }
+
+    public function apps(): HasMany
+    {
+        return $this->hasMany(DeviceApp::class, 'deviceId', 'deviceId');
+    }
 }
