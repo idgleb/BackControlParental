@@ -17,12 +17,12 @@ class SyncController extends Controller
     {
         foreach ($request->all() as $data) {
             DeviceApp::updateOrCreate(
-                ['package_name' => $data['packageName']],
+                ['packageName' => $data['packageName']],
                 [
-                    'app_name' => $data['appName'],
-                    'app_status' => $data['appStatus'],
-                    'daily_usage_limit_minutes' => $data['dailyUsageLimitMinutes'],
-                    'usage_time_today' => $data['usageTimeToday'],
+                    'appName' => $data['appName'],
+                    'appStatus' => $data['appStatus'],
+                    'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
+                    'usageTimeToday' => $data['usageTimeToday'],
                 ]
             );
         }
