@@ -7,6 +7,7 @@ use App\Models\Horario;
 use App\Models\Device;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SyncController extends Controller
 {
@@ -61,7 +62,7 @@ class SyncController extends Controller
     public function postHorarios(Request $request)
     {
         DB::transaction(function () use ($request) {
-            // Clear existing records without leaving the transaction
+
             DB::table('horarios')->delete();
 
             foreach ($request->all() as $data) {
@@ -89,24 +90,31 @@ class SyncController extends Controller
 
     public function postDevices(Request $request)
     {
-        DB::transaction(function () use ($request) {
-            DB::table('devices')->delete();
 
-            foreach ($request->all() as $data) {
-                Device::updateOrCreate(
-                    ['deviceId' => $data['deviceId'] ?? null],
-                    [
-                        'model' => $data['model'] ?? null,
-                        'batteryLevel' => $data['batteryLevel'] ?? null,
-                    ]
-                );
-            }
-        });
+        Log::debug('Request recibido en postDevices: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
+
+
+        Log::info('Datos de entrada:', [
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'headers' => $request->headers->all(),
+            'body' => $request->all(),
+        ]);
+
+
+        foreach ($request->all() as $data) {
+            Device::updateOrCreate(
+                ['deviceId' => $data['deviceId'] ?? null],
+                [
+                    'model' => $data['model'] ?? null,
+                    'batteryLevel' => $data['batteryLevel'] ?? null,
+                ]
+            );
+        }
+
 
         return response()->json(['status' => 'ok']);
     }
-
-
 
 
 }
