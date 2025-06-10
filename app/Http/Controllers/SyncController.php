@@ -16,13 +16,19 @@ class SyncController extends Controller
     public function postApps(Request $request)
     {
         foreach ($request->all() as $data) {
+
+            $icon = $data['appIcon'] ?? null;
+            if (is_array($icon)) {
+                $icon = base64_encode(pack('C*', ...$icon));
+            }
+
             DeviceApp::updateOrCreate(
                 ['packageName' => $data['packageName']],
                 [
                     'appName' => $data['appName'],
-                    'appIcon' => $data['appIcon'] ?? null,
-                    'appCategory' => $data['appCategory'],
-                    'contentRating' => $data['contentRating'],
+                    'appIcon' => $icon,
+                    'appCategory' => $this->stringify($data['appCategory']),
+                    'contentRating' => $this->stringify($data['contentRating']),
                     'isSystemApp' => $data['isSystemApp'],
                     'usageTimeToday' => $data['usageTimeToday'],
                     'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'],
@@ -34,6 +40,16 @@ class SyncController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
+
+    private function stringify(mixed $value): string|null
+    {
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+
+        return $value;
+    }
+
 
     public function getHorarios()
     {
