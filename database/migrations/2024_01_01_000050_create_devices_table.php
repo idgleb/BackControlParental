@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('devices', function (Blueprint $table) {
             $table->id();
-            $table->string('deviceId')->nullable();
+            $table->string('deviceId')->unique();
             $table->string('model')->nullable();
             $table->integer('batteryLevel')->nullable();
             $table->timestamps();

@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\Device;
 
 class User extends Authenticatable
 {
@@ -45,4 +47,17 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function devices(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Device::class,
+            'device_user',
+            'user_id',
+            'deviceId',
+            'id',
+            'deviceId'
+        );
+    }
+
 }
