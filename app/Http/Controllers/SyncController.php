@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DeviceApp;
 use App\Models\Horario;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SyncController extends Controller
 {
@@ -15,29 +16,29 @@ class SyncController extends Controller
 
     public function postApps(Request $request)
     {
-        foreach ($request->all() as $data) {
-
-            $icon = $data['appIcon'] ?? null;
-            if (is_array($icon)) {
-                $icon = base64_encode(pack('C*', ...$icon));
+        DB::transaction(function () use ($request) {
+            DB::table('device_apps')->truncate();
+            foreach ($request->all() as $data) {
+                $icon = $data['appIcon'] ?? null;
+                if (is_array($icon)) {
+                    $icon = base64_encode(pack('C*', ...$icon));
+                }
+                DeviceApp::updateOrCreate(
+                    ['packageName' => $data['packageName']],
+                    [
+                        'appName' => $data['appName'],
+                        'appIcon' => $icon,
+                        'appCategory' => $this->stringify($data['appCategory']),
+                        'contentRating' => $this->stringify($data['contentRating']),
+                        'isSystemApp' => $data['isSystemApp'],
+                        'usageTimeToday' => $data['usageTimeToday'],
+                        'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'],
+                        'appStatus' => $data['appStatus'],
+                        'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
+                    ]
+                );
             }
-
-            DeviceApp::updateOrCreate(
-                ['packageName' => $data['packageName']],
-                [
-                    'appName' => $data['appName'],
-                    'appIcon' => $icon,
-                    'appCategory' => $this->stringify($data['appCategory']),
-                    'contentRating' => $this->stringify($data['contentRating']),
-                    'isSystemApp' => $data['isSystemApp'],
-                    'usageTimeToday' => $data['usageTimeToday'],
-                    'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'],
-                    'appStatus' => $data['appStatus'],
-                    'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
-                ]
-            );
-        }
-
+        });
         return response()->json(['status' => 'ok']);
     }
 
