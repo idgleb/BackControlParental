@@ -20,9 +20,14 @@ class SyncController extends Controller
                 ['packageName' => $data['packageName']],
                 [
                     'appName' => $data['appName'],
+                    'appIcon' => $data['appIcon'] ?? null,
+                    'appCategory' => $data['appCategory'],
+                    'contentRating' => $data['contentRating'],
+                    'isSystemApp' => $data['isSystemApp'],
+                    'usageTimeToday' => $data['usageTimeToday'],
+                    'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'],
                     'appStatus' => $data['appStatus'],
                     'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
-                    'usageTimeToday' => $data['usageTimeToday'],
                 ]
             );
         }

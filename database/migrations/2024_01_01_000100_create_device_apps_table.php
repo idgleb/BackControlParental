@@ -12,9 +12,14 @@ return new class extends Migration
             $table->id();
             $table->string('packageName')->unique();
             $table->string('appName');
+            $table->binary('appIcon')->nullable();
+            $table->string('appCategory');
+            $table->string('contentRating');
+            $table->boolean('isSystemApp');
+            $table->unsignedBigInteger('usageTimeToday');
+            $table->unsignedBigInteger('timeStempUsageTimeToday');
             $table->string('appStatus');
             $table->integer('dailyUsageLimitMinutes');
-            $table->unsignedBigInteger('usageTimeToday');
             $table->timestamps();
         });
     }
