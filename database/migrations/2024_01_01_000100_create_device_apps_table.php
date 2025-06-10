@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('deviceId');
             $table->string('packageName');
+            $table->string('appName');
             $table->binary('appIcon')->nullable();
             $table->string('appCategory');
             $table->string('contentRating');
