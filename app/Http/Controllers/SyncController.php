@@ -31,7 +31,20 @@ class SyncController extends Controller
         ]);*/
 
         DB::transaction(function () use ($request) {
-            DB::table('device_apps')->delete();
+
+            // Delete only the apps belonging to the deviceIds present in the request
+            $deviceIds = collect($request->all())
+                ->pluck('deviceId')
+                ->filter()
+                ->unique();
+
+            if ($deviceIds->isNotEmpty()) {
+                DB::table('device_apps')
+                    ->whereIn('deviceId', $deviceIds->all())
+                    ->delete();
+            }
+
+
             foreach ($request->all() as $data) {
                 $icon = $data['appIcon'] ?? null;
                 if (is_array($icon)) {
