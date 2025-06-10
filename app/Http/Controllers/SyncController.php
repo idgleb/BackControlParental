@@ -18,7 +18,8 @@ class SyncController extends Controller
 
     public function postApps(Request $request)
     {
-        // Registrar el contenido completo del request
+
+/*        // Registrar el contenido completo del request
         Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
         // Opcional: Registrar más detalles específicos
@@ -27,7 +28,7 @@ class SyncController extends Controller
             'url' => $request->url(),
             'headers' => $request->headers->all(),
             'body' => $request->all(),
-        ]);
+        ]);*/
 
         DB::transaction(function () use ($request) {
             DB::table('device_apps')->delete();
@@ -38,7 +39,7 @@ class SyncController extends Controller
                 }
                 DeviceApp::updateOrCreate(
                     ['deviceId' => $data['deviceId'], 'packageName' => $data['packageName']],
-                    ['deviceId' => $data['deviceId'],
+                    [
                         'appName' => $data['appName'],
                         'appIcon' => $icon,
                         'appCategory' => $this->stringify($data['appCategory']),
