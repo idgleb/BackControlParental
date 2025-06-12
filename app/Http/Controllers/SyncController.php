@@ -20,7 +20,7 @@ class SyncController extends Controller
     {
 
         // Registrar el contenido completo del request
-        Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
+        //Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
       /*  // Opcional: Registrar más detalles específicos
         Log::info('Datos de entrada en postApps:', [
@@ -37,11 +37,13 @@ class SyncController extends Controller
                 ->pluck('deviceId')
                 ->filter()
                 ->unique();
+            Log::debug("deviceIds", $deviceIds->all());
+
 
             if ($deviceIds->isNotEmpty()) {
-                DB::table('device_apps')
-                    ->whereIn('deviceId', $deviceIds->all())
-                    ->delete();
+                Log::debug("Hay algo en deviceIds");
+                DeviceApp::whereIn('deviceId', $deviceIds->all())->delete();
+                //DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
             }
 
 
