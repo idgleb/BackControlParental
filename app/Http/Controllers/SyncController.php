@@ -22,13 +22,13 @@ class SyncController extends Controller
         // Registrar el contenido completo del request
         //Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
-      /*  // Opcional: Registrar más detalles específicos
-        Log::info('Datos de entrada en postApps:', [
-            'method' => $request->method(),
-            'url' => $request->url(),
-            'headers' => $request->headers->all(),
-            'body' => $request->all(),
-        ]);*/
+        /*  // Opcional: Registrar más detalles específicos
+          Log::info('Datos de entrada en postApps:', [
+              'method' => $request->method(),
+              'url' => $request->url(),
+              'headers' => $request->headers->all(),
+              'body' => $request->all(),
+          ]);*/
 
         DB::transaction(function () use ($request) {
 
@@ -42,8 +42,8 @@ class SyncController extends Controller
 
             if ($deviceIds->isNotEmpty()) {
                 Log::debug("Hay algo en deviceIds");
-                DeviceApp::whereIn('deviceId', $deviceIds->all())->delete();
-                //DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
+                DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
+                Log::debug("DeviceApps borrados");
             }
 
 
@@ -121,12 +121,12 @@ class SyncController extends Controller
         //Log::debug('Request recibido en postDevices: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
 
-    /*    Log::info('Datos de entrada:', [
-            'method' => $request->method(),
-            'url' => $request->url(),
-            'headers' => $request->headers->all(),
-            'body' => $request->all(),
-        ]);*/
+        /*    Log::info('Datos de entrada:', [
+                'method' => $request->method(),
+                'url' => $request->url(),
+                'headers' => $request->headers->all(),
+                'body' => $request->all(),
+            ]);*/
 
 
         $data = $request->all();
