@@ -19,10 +19,10 @@ class SyncController extends Controller
     public function postApps(Request $request)
     {
 
-/*        // Registrar el contenido completo del request
+        // Registrar el contenido completo del request
         Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
-        // Opcional: Registrar más detalles específicos
+      /*  // Opcional: Registrar más detalles específicos
         Log::info('Datos de entrada en postApps:', [
             'method' => $request->method(),
             'url' => $request->url(),
@@ -116,15 +116,15 @@ class SyncController extends Controller
     public function postDevices(Request $request)
     {
 
-        Log::debug('Request recibido en postDevices: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
+        //Log::debug('Request recibido en postDevices: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
 
 
-        Log::info('Datos de entrada:', [
+    /*    Log::info('Datos de entrada:', [
             'method' => $request->method(),
             'url' => $request->url(),
             'headers' => $request->headers->all(),
             'body' => $request->all(),
-        ]);
+        ]);*/
 
 
         $data = $request->all();
