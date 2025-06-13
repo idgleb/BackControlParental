@@ -39,13 +39,11 @@ class SyncController extends Controller
                 ->unique();
             Log::debug("deviceIds", $deviceIds->all());
 
-
             if ($deviceIds->isNotEmpty()) {
                 Log::debug("Hay algo en deviceIds");
                 DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
                 Log::debug("DeviceApps borrados");
             }
-
 
             foreach ($request->all() as $data) {
                 $icon = $data['appIcon'] ?? null;
