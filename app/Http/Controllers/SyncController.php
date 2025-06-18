@@ -11,8 +11,12 @@ use Illuminate\Support\Facades\Log;
 
 class SyncController extends Controller
 {
-    public function getApps()
+    public function getApps(Request $request)
     {
+        $deviceId = $request->query('deviceId');
+        if ($deviceId) {
+            return DeviceApp::where('deviceId', $deviceId)->get();
+        }
         return DeviceApp::all();
     }
 
@@ -79,8 +83,12 @@ class SyncController extends Controller
     }
 
 
-    public function getHorarios()
+    public function getHorarios(Request $request)
     {
+        $deviceId = $request->query('deviceId');
+        if ($deviceId) {
+            return Horario::where('deviceId', $deviceId)->get();
+        }
         return Horario::all();
     }
 
@@ -88,11 +96,22 @@ class SyncController extends Controller
     {
         DB::transaction(function () use ($request) {
 
-            DB::table('horarios')->delete();
+            // Eliminar solo los horarios del dispositivo específicos presentes en la solicitud
+            $deviceIds = collect($request->all())
+                ->pluck('deviceId')
+                ->filter()
+                ->unique();
+            Log::debug("deviceIds", $deviceIds->all());
+
+            if ($deviceIds->isNotEmpty()) {
+                Log::debug("postHorarios Hay algo en deviceIds");
+                DB::table('horarios')->whereIn('deviceId', $deviceIds->all())->delete();
+                Log::debug("postHorarios DeviceApps borrados");
+            }
 
             foreach ($request->all() as $data) {
                 Horario::updateOrCreate(
-                    ['id' => $data['id'] ?? null],
+                    ['deviceId' => $data['deviceId'], 'idHoririo' => $data['id'] ?? null],
                     [
                         'nombreDeHorario' => $data['nombreDeHorario'],
                         'diasDeSemana' => $data['diasDeSemana'],

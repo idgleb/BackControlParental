@@ -20,12 +20,18 @@ class Device extends Model
     {
         static::deleting(function (Device $device) {
             $device->apps()->delete();
+            $device->horarios()->delete();
         });
     }
 
     public function apps(): HasMany
     {
         return $this->hasMany(DeviceApp::class, 'deviceId', 'deviceId');
+    }
+
+    public function horarios(): HasMany
+    {
+        return $this->hasMany(Horario::class, 'deviceId', 'deviceId');
     }
 
     public function users(): BelongsToMany

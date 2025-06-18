@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Horario extends Model
 {
     protected $fillable = [
+        'deviceId',
+        'idHorario',
         'nombreDeHorario',
         'diasDeSemana',
         'horaInicio',
@@ -19,4 +22,8 @@ class Horario extends Model
         'isActive' => 'boolean',
     ];
 
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(Device::class, 'deviceId', 'deviceId');
+    }
 }
