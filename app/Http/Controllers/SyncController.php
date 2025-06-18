@@ -20,19 +20,11 @@ class SyncController extends Controller
         return DeviceApp::all();
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function postApps(Request $request)
     {
-
-        // Registrar el contenido completo del request
-        //Log::debug('Request recibido en postApps: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
-
-        /*  // Opcional: Registrar más detalles específicos
-          Log::info('Datos de entrada en postApps:', [
-              'method' => $request->method(),
-              'url' => $request->url(),
-              'headers' => $request->headers->all(),
-              'body' => $request->all(),
-          ]);*/
 
         DB::transaction(function () use ($request) {
 
@@ -44,9 +36,7 @@ class SyncController extends Controller
             Log::debug("deviceIds", $deviceIds->all());
 
             if ($deviceIds->isNotEmpty()) {
-                Log::debug("Hay algo en deviceIds");
                 DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
-                Log::debug("DeviceApps borrados");
             }
 
             foreach ($request->all() as $data) {
@@ -73,6 +63,25 @@ class SyncController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
+    /**
+     * @throws \Throwable
+     */
+    public function deleteApps(Request $request)
+    {
+        DB::transaction(function () use ($request) {
+            $deviceIds = $request->input('deviceId');
+
+            // Si es un string con un solo ID, pasa a ser un array con ese solo elemento
+            if (is_string($deviceIds)) $deviceIds = [$deviceIds];
+
+            if ($deviceIds && is_array($deviceIds)) {
+                DB::table('device_apps')->whereIn('deviceId', $deviceIds)->delete();
+            }
+        });
+
+        return response()->json(['status' => 'ok']);
+    }
+
     private function stringify(mixed $value): string|null
     {
         if (is_array($value)) {
@@ -92,6 +101,9 @@ class SyncController extends Controller
         return Horario::all();
     }
 
+    /**
+     * @throws \Throwable
+     */
     public function postHorarios(Request $request)
     {
         DB::transaction(function () use ($request) {
@@ -111,7 +123,7 @@ class SyncController extends Controller
 
             foreach ($request->all() as $data) {
                 Horario::updateOrCreate(
-                    ['deviceId' => $data['deviceId'], 'idHoririo' => $data['id'] ?? null],
+                    ['deviceId' => $data['deviceId'], 'idHorario' => $data['idHorario'] ?? null],
                     [
                         'nombreDeHorario' => $data['nombreDeHorario'],
                         'diasDeSemana' => $data['diasDeSemana'],
@@ -120,6 +132,25 @@ class SyncController extends Controller
                         'isActive' => $data['isActive'],
                     ]
                 );
+            }
+        });
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * @throws \Throwable
+     */
+    public function deleteHorarios(Request $request)
+    {
+        DB::transaction(function () use ($request) {
+            $deviceIds = $request->input('deviceId');
+
+            // Si es un string con un solo ID, pasa a ser un array con ese solo elemento
+            if (is_string($deviceIds)) $deviceIds = [$deviceIds];
+
+            if ($deviceIds && is_array($deviceIds)) {
+                DB::table('horarios')->whereIn('deviceId', $deviceIds)->delete();
             }
         });
 
