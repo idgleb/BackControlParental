@@ -42,12 +42,22 @@ class SyncController extends Controller
             foreach ($request->all() as $data) {
                 $icon = $data['appIcon'] ?? null;
                 if (is_array($icon)) {
-                    $icon = base64_encode(pack('C*', ...$icon));
+                    $binaryData = pack('C*', ...$icon);
+                    Log::debug('appIcon size: ' . strlen($binaryData));
+                    $icon = $binaryData;
+                    //$icon = base64_encode(pack('C*', ...$icon));
                 }
+
+                // Validar que appName no sea null
+                $appName = $data['appName'] ?? 'Sin nombre'; // Valor por defecto si es null
+                if (empty($appName)) {
+                    Log::warning("appName is empty or null for deviceId: {$data['deviceId']}, packageName: {$data['packageName']}");
+                }
+
                 DeviceApp::updateOrCreate(
                     ['deviceId' => $data['deviceId'], 'packageName' => $data['packageName']],
                     [
-                        'appName' => $data['appName'],
+                        'appName' => $appName,
                         'appIcon' => $icon,
                         'appCategory' => $this->stringify($data['appCategory']),
                         'contentRating' => $this->stringify($data['contentRating']),

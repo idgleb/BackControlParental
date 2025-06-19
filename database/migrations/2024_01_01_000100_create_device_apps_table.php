@@ -28,6 +28,9 @@ return new class extends Migration {
             $table->unique(['deviceId', 'packageName']);
             $table->timestamps();
         });
+
+        // Modificar appIcon a MEDIUMBLOB después de crear la tabla
+        DB::statement('ALTER TABLE device_apps MODIFY COLUMN appIcon MEDIUMBLOB');
     }
 
     public function down(): void
