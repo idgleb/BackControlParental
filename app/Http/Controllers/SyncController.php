@@ -43,7 +43,6 @@ class SyncController extends Controller
                 $icon = $data['appIcon'] ?? null;
                 if (is_array($icon)) {
                     $binaryData = pack('C*', ...$icon);
-                    Log::debug('appIcon size: ' . strlen($binaryData));
                     $icon = $binaryData;
                     //$icon = base64_encode(pack('C*', ...$icon));
                 }
