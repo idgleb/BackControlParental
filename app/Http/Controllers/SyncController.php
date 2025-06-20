@@ -104,11 +104,50 @@ class SyncController extends Controller
     public function getHorarios(Request $request)
     {
         $deviceId = $request->query('deviceId');
-        if ($deviceId) {
-            return Horario::where('deviceId', $deviceId)->get();
+        Log::debug("getHorarios", ['deviceId' => $deviceId]);
+
+        try {
+            $horarios = $deviceId
+                ? Horario::where('deviceId', $deviceId)->get()
+                : Horario::all();
+
+            $rawData = $horarios->toArray();
+            Log::debug("getHorarios raw data", ['raw_data' => $rawData]);
+
+            $jsonString = json_encode($rawData, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+            if ($jsonString === false) {
+                Log::error("getHorarios json encode failed", ['error' => json_last_error_msg()]);
+                return response('JSON encoding failed: ' . json_last_error_msg(), 500)
+                    ->header('Content-Type', 'text/plain');
+            }
+
+            Log::debug("getHorarios json encoded", ['json_string' => $jsonString]);
+            return response($jsonString)
+                ->header('Content-Type', 'application/json');
+        } catch (\Exception $e) {
+            Log::error("getHorarios error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['error' => 'Failed to fetch horarios', 'details' => $e->getMessage()], 500);
         }
-        return Horario::all();
     }
+
+    public function getDevices(Request $request)
+    {
+        $deviceId = $request->query('deviceId');
+        Log::debug("getDevices", ['deviceId' => $deviceId]);
+
+        try {
+            $devices = $deviceId
+                ? Device::where('deviceId', $deviceId)->get()
+                : Device::all();
+            Log::debug("getDevices result", ['devices' => $devices->toArray()]);
+            return response()->json($devices->isEmpty() ? [] : $devices)->setEncodingOptions(JSON_UNESCAPED_UNICODE);
+        } catch (\Exception $e) {
+            Log::error("getDevices error", ['message' => $e->getMessage()]);
+            return response()->json(['error' => 'Failed to fetch devices'], 500);
+        }
+    }
+
+
 
     /**
      * @throws \Throwable
@@ -166,11 +205,6 @@ class SyncController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-
-    public function getDevices()
-    {
-        return Device::all();
-    }
 
     public function postDevices(Request $request)
     {
