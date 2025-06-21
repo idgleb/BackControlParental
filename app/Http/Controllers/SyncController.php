@@ -19,9 +19,15 @@ class SyncController extends Controller
         if ($deviceId) {
             $query->where('deviceId', $deviceId);
         }
+
         $apps = $query->get()->map(function (DeviceApp $app) {
             if ($app->appIcon !== null) {
-                $app->appIcon = base64_encode($app->appIcon);
+                $app->appIcon = array_values(unpack('C*', $app->appIcon));
+            }
+            if ($app->isSystemApp === 1) {
+                $app->isSystemApp = true;
+            } else {
+                $app->isSystemApp = false;
             }
 
             return $app;
