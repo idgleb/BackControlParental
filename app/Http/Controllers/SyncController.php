@@ -14,10 +14,20 @@ class SyncController extends Controller
     public function getApps(Request $request)
     {
         $deviceId = $request->query('deviceId');
+        $query = DeviceApp::query();
+
         if ($deviceId) {
-            return DeviceApp::where('deviceId', $deviceId)->get();
+            $query->where('deviceId', $deviceId);
         }
-        return DeviceApp::all();
+        $apps = $query->get()->map(function (DeviceApp $app) {
+            if ($app->appIcon !== null) {
+                $app->appIcon = base64_encode($app->appIcon);
+            }
+
+            return $app;
+        });
+
+        return response()->json($apps)->setEncodingOptions(JSON_UNESCAPED_UNICODE);
     }
 
     /**
