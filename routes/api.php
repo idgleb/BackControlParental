@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\AuthController;
 
 Route::get('/sync/apps', [SyncController::class, 'getApps']);
 Route::post('/sync/apps', [SyncController::class, 'postApps']);
@@ -13,4 +14,8 @@ Route::delete('/sync/horarios', [SyncController::class, 'deleteHorarios']);
 
 Route::get('/sync/devices', [SyncController::class, 'getDevices']);
 Route::post('/sync/devices', [SyncController::class, 'postDevices']);
+
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
 

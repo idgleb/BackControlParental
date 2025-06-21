@@ -10,6 +10,8 @@
 <nav class="bg-white shadow p-4 flex space-x-4">
     <a href="{{ url('/') }}" class="text-blue-500">Inicio</a>
     <a href="{{ route('devices.index') }}" class="text-blue-500">Dispositivos</a>
+    <a href="{{ route('login') }}" class="text-blue-500">Iniciar sesión</a>
+    <a href="{{ route('register') }}" class="text-blue-500">Registrarse</a>
 </nav>
 <div class="container mx-auto mt-10">
     <h1 class="text-2xl font-semibold">Bienvenido</h1>
