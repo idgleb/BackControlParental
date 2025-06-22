@@ -224,16 +224,28 @@ class SyncController extends Controller
 
     public function postDevices(Request $request)
     {
-
         $data = $request->all();
-        Device::updateOrCreate(
-            ['deviceId' => $data['deviceId'] ?? null],
-            [
+        
+        // Buscar el dispositivo existente
+        $device = Device::where('deviceId', $data['deviceId'] ?? null)->first();
+        
+        if ($device) {
+            // Si el dispositivo existe, actualizar los datos y forzar la actualización del timestamp
+            $device->update([
                 'model' => $data['model'] ?? null,
                 'batteryLevel' => $data['batteryLevel'] ?? null,
-            ]
-        );
-
+            ]);
+            
+            // Forzar la actualización del timestamp updated_at
+            $device->touch();
+        } else {
+            // Si no existe, crear uno nuevo
+            Device::create([
+                'deviceId' => $data['deviceId'] ?? null,
+                'model' => $data['model'] ?? null,
+                'batteryLevel' => $data['batteryLevel'] ?? null,
+            ]);
+        }
 
         return response()->json(['status' => 'ok']);
     }
