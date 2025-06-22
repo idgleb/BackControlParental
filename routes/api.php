@@ -18,4 +18,13 @@ Route::post('/sync/devices', [SyncController::class, 'postDevices']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Ruta para obtener el estado actualizado de un dispositivo
+Route::get('/devices/{device}/status', function (App\Models\Device $device) {
+    return response()->json([
+        'status' => $device->status,
+        'last_seen' => $device->last_seen,
+        'updated_at' => $device->updated_at
+    ]);
+});
+
 

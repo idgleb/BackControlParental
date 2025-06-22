@@ -225,17 +225,6 @@ class SyncController extends Controller
     public function postDevices(Request $request)
     {
 
-        //Log::debug('Request recibido en postDevices: ' . json_encode($request->all(), JSON_PRETTY_PRINT));
-
-
-        /*    Log::info('Datos de entrada:', [
-                'method' => $request->method(),
-                'url' => $request->url(),
-                'headers' => $request->headers->all(),
-                'body' => $request->all(),
-            ]);*/
-
-
         $data = $request->all();
         Device::updateOrCreate(
             ['deviceId' => $data['deviceId'] ?? null],
