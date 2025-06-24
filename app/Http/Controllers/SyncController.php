@@ -225,17 +225,18 @@ class SyncController extends Controller
     public function postDevices(Request $request)
     {
         $data = $request->all();
-        
+        \Log::info('postDevices data', $data);
+
         // Buscar el dispositivo existente
         $device = Device::where('deviceId', $data['deviceId'] ?? null)->first();
-        
+
         if ($device) {
             // Si el dispositivo existe, actualizar los datos y forzar la actualización del timestamp
             $device->update([
                 'model' => $data['model'] ?? null,
                 'batteryLevel' => $data['batteryLevel'] ?? null,
             ]);
-            
+
             // Forzar la actualización del timestamp updated_at
             $device->touch();
         } else {

@@ -22,11 +22,26 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'redirect' => '/devices',
+                    'message' => 'Inicio de sesión exitoso'
+                ]);
+            }
             return redirect()->intended('/');
         }
 
+        $mensaje = 'Correo o contraseña incorrectos.';
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => $mensaje
+            ], 401);
+        }
+
         return back()->withErrors([
-            'email' => __('auth.failed'),
+            'email' => $mensaje,
         ])->onlyInput('email');
     }
 

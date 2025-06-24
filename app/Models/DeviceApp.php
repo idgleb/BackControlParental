@@ -161,4 +161,12 @@ class DeviceApp extends Model
             return $interval->format('%i minutos');
         }
     }
+
+    /**
+     * Accessor para obtener el icono en base64
+     */
+    public function getAppIconBase64Attribute()
+    {
+        return $this->appIcon ? base64_encode($this->appIcon) : null;
+    }
 }
