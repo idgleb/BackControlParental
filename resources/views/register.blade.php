@@ -7,6 +7,7 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+
     @if (app()->environment('local'))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Control Parental v2.0')
+@section('title', '3 Control Parental v3.0')
 
 @section('content')
 <div class="max-w-4xl mx-auto px-2 sm:px-4 text-center">
