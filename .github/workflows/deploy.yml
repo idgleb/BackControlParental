@@ -1,0 +1,78 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: controlparental
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build Docker image
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        
+        # Push to ECR
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: 18.206.159.223
+        username: ubuntu
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Set environment variables
+          export AWS_ACCOUNT_ID=183631328623
+          export AWS_REGION=us-east-1
+          export IMAGE_TAG=latest
+          export DB_DATABASE=controlparental
+          export DB_USERNAME=controlparental_user
+          export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          export DB_ROOT_PASSWORD="${{ secrets.DB_ROOT_PASSWORD }}"
+          export APP_KEY="${{ secrets.APP_KEY }}"
+          
+          # Login to ECR
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 183631328623.dkr.ecr.us-east-1.amazonaws.com
+          
+          # Pull latest image
+          docker pull 183631328623.dkr.ecr.us-east-1.amazonaws.com/controlparental:latest
+          
+          # Deploy with docker-compose
+          docker-compose -f docker-compose.aws.yml down
+          docker-compose -f docker-compose.aws.yml up -d
+          
+          # Copy .env and run setup
+          docker cp ~/.env.production ubuntu-app-1:/var/www/.env
+          docker exec ubuntu-app-1 chown www-data:www-data /var/www/.env
+          docker exec ubuntu-app-1 php artisan migrate --force
+          docker exec ubuntu-app-1 php artisan config:cache
+          docker exec ubuntu-app-1 php artisan route:cache
+          docker exec ubuntu-app-1 php artisan view:cache 
