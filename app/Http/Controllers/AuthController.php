@@ -61,7 +61,15 @@ class AuthController extends Controller
         $user = User::create($validated);
         Auth::login($user);
 
-        return redirect('/');
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'redirect' => '/devices',
+                'message' => 'Registro exitoso'
+            ], 201);
+        }
+
+        return redirect('/devices');
     }
 
     public function logout(Request $request)
