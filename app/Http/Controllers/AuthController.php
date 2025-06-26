@@ -61,7 +61,7 @@ class AuthController extends Controller
         $user = User::create($validated);
         Auth::login($user);
 
-        if ($request->ajax() || $request->wantsJson()) {
+        if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'redirect' => '/devices',
@@ -69,7 +69,7 @@ class AuthController extends Controller
             ], 201);
         }
 
-        return redirect('/devices');
+        return redirect()->route('devices.index');
     }
 
     public function logout(Request $request)
