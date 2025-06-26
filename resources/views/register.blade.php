@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Registro - Control Parental</title>
+    <title>Registro - Control Parental V2</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @if (app()->environment('local'))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -92,22 +92,22 @@ document.addEventListener('DOMContentLoaded', function() {
             this.serverStatus = 'unknown';
             this.init();
         }
-        
+
         init() {
             this.checkServerStatus();
             this.startAutoRefresh();
         }
-        
+
         async checkServerStatus() {
             try {
                 // Evitar múltiples peticiones simultáneas
                 if (this.isLoading) return;
                 this.isLoading = true;
-                
+
                 const response = await axios.get('/api/health', {
                     timeout: 3000
                 });
-                
+
                 if (response.data.success) {
                     this.updateServerStatus('online');
                     this.errorCount = 0;
@@ -120,12 +120,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.isLoading = false;
             }
         }
-        
+
         updateServerStatus(status) {
             if (this.serverStatus === status) return;
-            
+
             this.serverStatus = status;
-            
+
             // Crear o actualizar indicador de estado
             let statusIndicator = document.getElementById('server-status-indicator');
             if (!statusIndicator) {
@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusIndicator.className = 'fixed bottom-4 right-4 z-50 p-2 rounded-full text-xs shadow-lg transform transition-all duration-300';
                 document.body.appendChild(statusIndicator);
             }
-            
+
             if (status === 'online') {
                 statusIndicator.className = 'fixed bottom-4 right-4 z-50 p-2 rounded-full text-xs shadow-lg transform transition-all duration-300 bg-green-500 text-white';
                 statusIndicator.innerHTML = `
@@ -156,13 +156,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
-            
+
             // Mostrar indicador
             setTimeout(() => {
                 statusIndicator.style.transform = 'translateY(0)';
             }, 100);
         }
-        
+
         handleError() {
             // Si hay errores consecutivos, aumentar el intervalo temporalmente
             this.errorCount = (this.errorCount || 0) + 1;
@@ -174,36 +174,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 60000);
             }
         }
-        
+
         startAutoRefresh() {
             setInterval(() => {
                 this.checkServerStatus();
             }, this.refreshInterval);
         }
     }
-    
+
     const registerForm = document.getElementById('registerForm');
     const registerBtn = document.getElementById('registerBtn');
-    
+
     // Inicializar sistema de actualización automática
     window.registerAutoRefresh = new RegisterAutoRefresh();
-    
+
     if (registerForm && registerBtn) {
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             // Validar formulario antes de enviar
             if (!validateRegisterForm()) {
                 return;
             }
-            
+
             try {
                 // Cambiar estado del botón
                 setRegisterButtonLoading(true);
-                
+
                 // Recopilar datos del formulario
                 const formData = new FormData(registerForm);
-                
+
                 // Enviar petición con Axios
                 const response = await axios.post(registerForm.action, formData, {
                     headers: {
@@ -212,10 +212,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     timeout: 10000
                 });
-                
+
                 if (response.data.success) {
                     showNotification('Registro exitoso', 'success');
-                    
+
                     // Redirigir después de un breve delay
                     setTimeout(() => {
                         window.location.href = response.data.redirect || '/devices';
@@ -225,9 +225,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } catch (error) {
                 console.error('Error:', error);
-                
+
                 let errorMessage = 'Error en el registro';
-                
+
                 if (error.response) {
                     if (error.response.data && error.response.data.message) {
                         errorMessage = error.response.data.message;
@@ -246,18 +246,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (error.code === 'ECONNABORTED') {
                     errorMessage = 'La petición tardó demasiado';
                 }
-                
+
                 showNotification(errorMessage, 'error');
             } finally {
                 setRegisterButtonLoading(false);
             }
         });
     }
-    
+
     function setRegisterButtonLoading(loading) {
         const registerIcon = document.getElementById('registerIcon');
         const registerText = document.getElementById('registerText');
-        
+
         if (loading) {
             registerBtn.disabled = true;
             registerIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>';
@@ -270,20 +270,20 @@ document.addEventListener('DOMContentLoaded', function() {
             registerText.textContent = 'Registrarse';
         }
     }
-    
+
     function validateRegisterForm() {
         let isValid = true;
-        
+
         // Limpiar errores previos
         clearRegisterValidationErrors();
-        
+
         // Validar nombre
         const name = document.getElementById('name');
         if (!name.value.trim()) {
             showRegisterFieldError(name, 'El nombre es obligatorio');
             isValid = false;
         }
-        
+
         // Validar email
         const email = document.getElementById('email');
         if (!email.value.trim()) {
@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showRegisterFieldError(email, 'Ingresa un correo electrónico válido');
             isValid = false;
         }
-        
+
         // Validar contraseña
         const password = document.getElementById('password');
         if (!password.value) {
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
             showRegisterFieldError(password, 'La contraseña debe tener al menos 8 caracteres');
             isValid = false;
         }
-        
+
         // Validar confirmación de contraseña
         const passwordConfirmation = document.getElementById('password_confirmation');
         if (!passwordConfirmation.value) {
@@ -313,15 +313,15 @@ document.addEventListener('DOMContentLoaded', function() {
             showRegisterFieldError(passwordConfirmation, 'Las contraseñas no coinciden');
             isValid = false;
         }
-        
+
         return isValid;
     }
-    
+
     function isValidEmail(email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     }
-    
+
     function showRegisterFieldError(field, message) {
         // Crear elemento de error
         const errorDiv = document.createElement('div');
@@ -332,14 +332,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </svg>
             ${message}
         `;
-        
+
         // Agregar clase de error al campo
         field.classList.add('ring-red-500');
-        
+
         // Insertar mensaje de error
         field.parentNode.appendChild(errorDiv);
     }
-    
+
     function clearRegisterValidationErrors() {
         // Remover mensajes de error
         document.querySelectorAll('.text-red-500.text-xs').forEach(error => {
@@ -353,16 +353,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 error.remove();
             }
         });
-        
+
         // Remover clases de error
         document.querySelectorAll('.ring-red-500').forEach(field => {
             field.classList.remove('ring-red-500');
         });
     }
-    
+
     function showRegisterValidationErrors(errors) {
         clearRegisterValidationErrors();
-        
+
         Object.keys(errors).forEach(field => {
             const fieldElement = document.getElementById(field);
             if (fieldElement) {
@@ -370,22 +370,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     function showNotification(message, type) {
         // Remover notificaciones existentes
         const existingNotifications = document.querySelectorAll('.notification');
         existingNotifications.forEach(notification => notification.remove());
-        
+
         // Crear notificación
         const notification = document.createElement('div');
         notification.className = `notification fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 ${
             type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
         }`;
-        
+
         notification.innerHTML = `
             <div class="flex items-center">
                 <div class="flex-shrink-0">
-                    ${type === 'success' ? 
+                    ${type === 'success' ?
                         '<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>' :
                         '<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>'
                     }
@@ -402,14 +402,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(notification);
-        
+
         // Animación de entrada
         setTimeout(() => {
             notification.style.transform = 'translateX(0)';
         }, 100);
-        
+
         // Remover automáticamente después de 5 segundos
         setTimeout(() => {
             if (notification.parentElement) {
