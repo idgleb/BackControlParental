@@ -24,3 +24,7 @@ Homestead.yaml
 npm-debug.log
 Thumbs.db
 yarn-error.log
+controlparental.pem
+
+# Ignore Windows Zone Identifier alternate data stream files
+*Zone.Identifier

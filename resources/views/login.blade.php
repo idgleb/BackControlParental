@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Iniciar Sesión - Control Parental</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="/build/assets/app-_ttpMgE2.css">
+    <script type="module" src="/build/assets/app-DNxiirP_.js"></script>
 </head>
 <body class="h-full">
 <div class="flex min-h-full flex-col justify-center px-2 sm:px-6 py-8 sm:py-12 lg:px-8 bg-gradient-to-br from-blue-100 to-purple-100">
