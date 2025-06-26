@@ -47,6 +47,18 @@ services:
     networks: [app-network]
     restart: unless-stopped
 
+  phpmyadmin:
+    image: phpmyadmin:latest
+    depends_on: [mysql]
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: ${DB_USERNAME}
+      PMA_PASSWORD: ${DB_PASSWORD}
+    networks: [app-network]
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 networks:
   app-network:
     driver: bridge
@@ -54,4 +66,4 @@ networks:
 volumes:
   mysql-data:
   public-volume:
-  storage-data: 
+  storage-data:
