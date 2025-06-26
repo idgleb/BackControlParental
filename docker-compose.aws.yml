@@ -5,9 +5,6 @@ services:
       - .env.production
     environment:
       DB_HOST: mysql
-      DB_DATABASE: ${DB_DATABASE}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
       APP_KEY: ${APP_KEY}
     volumes:
       - storage-data:/var/www/storage

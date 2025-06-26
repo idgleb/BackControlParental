@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', '! Control Parental v5.0')
+@section('title', 'Control Parental v6.0')
 
 @section('content')
 <div class="max-w-4xl mx-auto px-2 sm:px-4 text-center">
@@ -8,7 +8,7 @@
         Control Parental v2.0
     </h1>
     <p class="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600">
-        Hola, Gestiona el uso de dispositivos y aplicaciones de tus hijos de manera inteligente y segura.
+        Hola:), Gestiona el uso de dispositivos y aplicaciones de tus hijos de manera inteligente y segura.
     </p>
 
     @auth
