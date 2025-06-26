@@ -1,16 +1,16 @@
 @extends('layouts.app')
 
-@section('title', 'Bienvenido a Control Parental')
+@section('title', 'Bienvenido a Control Parental v2.0')
 
 @section('content')
 <div class="max-w-4xl mx-auto px-2 sm:px-4 text-center">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-        Control Parental
+        Control Parental v2.0
     </h1>
     <p class="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600">
-        Gestiona el uso de dispositivos y aplicaciones de tus hijos de manera inteligente y segura.
+        Hola, Gestiona el uso de dispositivos y aplicaciones de tus hijos de manera inteligente y segura.
     </p>
-    
+
     @auth
         <!-- Estadísticas en tiempo real -->
         <div class="mt-8 sm:mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
@@ -28,7 +28,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Dispositivos Online -->
             <div class="bg-white p-4 sm:p-6 rounded-lg shadow-lg border border-gray-200">
                 <div class="flex items-center justify-center">
@@ -43,7 +43,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Notificaciones -->
             <div class="bg-white p-4 sm:p-6 rounded-lg shadow-lg border border-gray-200">
                 <div class="flex items-center justify-center">
@@ -59,25 +59,25 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Indicador de actualización -->
         <div class="mt-4 text-xs text-gray-500" id="last-update">
             Última actualización: <span id="update-time">-</span>
         </div>
     @endauth
-    
+
     <div class="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-6">
         @auth
-            <a href="{{ route('devices.index') }}" 
+            <a href="{{ route('devices.index') }}"
                class="w-full sm:w-auto rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 text-center">
                 Ir a Mis Dispositivos
             </a>
         @else
-            <a href="{{ route('login') }}" 
+            <a href="{{ route('login') }}"
                class="w-full sm:w-auto rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 text-center">
                 Iniciar Sesión
             </a>
-            <a href="{{ route('register') }}" 
+            <a href="{{ route('register') }}"
                class="w-full sm:w-auto text-sm font-semibold leading-6 text-gray-900 text-center">
                 Registrarse <span aria-hidden="true">→</span>
             </a>
@@ -96,31 +96,31 @@ document.addEventListener('DOMContentLoaded', function() {
             this.errorCount = 0;
             this.init();
         }
-        
+
         init() {
             this.loadStats();
             this.startAutoRefresh();
         }
-        
+
         async loadStats() {
             try {
                 // Evitar múltiples peticiones simultáneas
                 if (this.isLoading) return;
                 this.isLoading = true;
-                
+
                 const [devicesResponse, notificationsResponse] = await Promise.all([
                     axios.get('/api/devices', { timeout: 2000 }),
                     axios.get('/api/notifications/count', { timeout: 2000 })
                 ]);
-                
+
                 if (devicesResponse.data.success) {
                     this.updateDevicesStats(devicesResponse.data.devices);
                 }
-                
+
                 if (notificationsResponse.data.success) {
                     this.updateNotificationsStats(notificationsResponse.data.count);
                 }
-                
+
                 this.updateLastUpdateTime();
                 this.errorCount = 0; // Resetear contador de errores en éxito
             } catch (error) {
@@ -130,38 +130,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.isLoading = false;
             }
         }
-        
+
         updateDevicesStats(devices) {
             const devicesCount = document.getElementById('devices-count');
             const devicesOnline = document.getElementById('devices-online');
-            
+
             if (devicesCount && devicesOnline) {
                 const totalDevices = devices.length;
                 const onlineDevices = devices.filter(device => device.status === 'online').length;
-                
+
                 devicesCount.textContent = totalDevices;
                 devicesOnline.textContent = onlineDevices;
-                
+
                 // Animación de actualización
                 this.animateUpdate(devicesCount);
                 this.animateUpdate(devicesOnline);
             }
         }
-        
+
         updateNotificationsStats(count) {
             const notificationsCount = document.getElementById('notifications-count');
-            
+
             if (notificationsCount) {
                 notificationsCount.textContent = count;
-                
+
                 // Animación de actualización
                 this.animateUpdate(notificationsCount);
             }
         }
-        
+
         updateLastUpdateTime() {
             const updateTime = document.getElementById('update-time');
-            
+
             if (updateTime) {
                 const now = new Date();
                 updateTime.textContent = now.toLocaleTimeString('es-ES', {
@@ -171,17 +171,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
         }
-        
+
         animateUpdate(element) {
             // Agregar clase de animación
             element.classList.add('text-indigo-600');
-            
+
             // Remover clase después de 500ms
             setTimeout(() => {
                 element.classList.remove('text-indigo-600');
             }, 500);
         }
-        
+
         handleError() {
             // Si hay errores consecutivos, aumentar el intervalo temporalmente
             this.errorCount = (this.errorCount || 0) + 1;
@@ -193,14 +193,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 60000);
             }
         }
-        
+
         startAutoRefresh() {
             setInterval(() => {
                 this.loadStats();
             }, this.refreshInterval);
         }
     }
-    
+
     // Inicializar sistema de actualización automática
     window.welcomeAutoRefresh = new WelcomeAutoRefresh();
 });
