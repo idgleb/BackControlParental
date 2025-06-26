@@ -4,8 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Registro - Control Parental</title>
-    <link rel="stylesheet" href="/build/assets/app-_ttpMgE2.css">
-    <script type="module" src="/build/assets/app-DNxiirP_.js"></script>
+    @if (app()->environment('local'))
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @else
+        @php
+            $manifest = json_decode(file_get_contents(public_path('build/manifest.json')), true);
+            $cssFile = $manifest['resources/css/app.css']['file'] ?? 'assets/app.css';
+            $jsFile = $manifest['resources/js/app.js']['file'] ?? 'assets/app.js';
+        @endphp
+        <link rel="stylesheet" href="{{ asset('build/' . $cssFile) }}">
+        <script type="module" src="{{ asset('build/' . $jsFile) }}"></script>
+    @endif
 </head>
 <body class="h-full">
 <div class="flex min-h-full flex-col justify-center px-2 sm:px-6 py-8 sm:py-12 lg:px-8 bg-gradient-to-br from-blue-100 to-purple-100">
