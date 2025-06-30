@@ -712,3 +712,83 @@ Frontend          Backend           DevOps            Cloud
 **🔗 Aplicación en Vivo**: [https://goooglee.online](https://goooglee.online)
 
 **Desarrollado con ❤️ usando Laravel, Docker, AWS y mucha dedicación**
+
+## Proyecto de Control Parental
+
+Este proyecto consta de dos partes principales:
+1.  Una aplicación de servidor web construida con **Laravel**.
+2.  Una aplicación cliente para dispositivos **Android**.
+
+## Flujo de Sincronización
+
+El sistema utiliza una arquitectura de sincronización incremental basada en eventos para mantener los datos consistentes entre el cliente y el servidor de manera eficiente. Esto evita la necesidad de transferir bases de datos completas, enviando únicamente los cambios específicos que han ocurrido.
+
+### 1. Sincronización del Cliente al Servidor
+
+Cuando un usuario realiza un cambio en la aplicación Android (por ejemplo, crear, actualizar o eliminar un horario), el sistema no envía la lista completa de datos. En su lugar, registra la acción específica y la sincroniza con el servidor.
+
+**Ejemplo: Eliminación de un Horario**
+
+1.  **Acción del Usuario:** El usuario elimina un horario en la app.
+2.  **Actualización Local:** La app borra el horario de la base de datos local (Room) y, crucialmente, anota el ID del horario eliminado en una "lista de tareas pendientes" (`SharedPreferences`).
+3.  **Ciclo de Sincronización:** Un `WorkManager` en segundo plano se activa periódicamente.
+4.  **Envío de Cambios:** El `EventSyncManager` revisa la lista de tareas y genera un evento de tipo `delete` para cada ID pendiente.
+5.  **Procesamiento del Servidor:** El servidor recibe el evento, elimina el registro correspondiente y notifica al cliente.
+6.  **Limpieza:** Una vez confirmada la sincronización, el cliente limpia el ID de su lista de tareas pendientes.
+
+```mermaid
+sequenceDiagram
+    participant Usuario
+    participant Cliente Android
+    participant Servidor
+
+    Usuario->>+Cliente Android: Eliminar Horario (ID: 5)
+    Cliente Android->>Cliente Android: 1. Borra de Room (id: 5)
+    Cliente Android->>Cliente Android: 2. Anota en SharedPreferences: "eliminar ID 5"
+    Note right of Cliente Android: La UI se actualiza al instante
+    deactivate Cliente Android
+
+    loop Ciclo de Sincronización (Worker)
+        Cliente Android->>+Cliente Android: 3. Lee "eliminar ID 5"
+        Cliente Android->>+Servidor: 4. POST /sync/events<br/>(action: 'delete', id: 5)
+        Servidor->>+Servidor: 5. Borra Horario 5 de su BD
+        Servidor-->>-Cliente Android: 6. 200 OK
+        Cliente Android->>+Cliente Android: 7. Limpia la lista de tareas
+        deactivate Cliente Android
+    end
+```
+
+### 2. Sincronización del Servidor al Cliente
+
+Cuando se realiza un cambio directamente en el servidor (por ejemplo, a través de una interfaz web), el sistema lo registra en un "diario de novedades" (la tabla `sync_events`). El cliente consulta periódicamente este diario para mantenerse actualizado.
+
+**Ejemplo: Creación de un Horario en el Servidor**
+
+1.  **Acción en el Servidor:** Un administrador crea un nuevo horario desde la interfaz web.
+2.  **Registro del Evento:** El servidor guarda el nuevo horario y, a continuación, crea un registro en la tabla `sync_events` con un ID autoincremental, describiendo la acción (ej: "se creó el horario 8").
+3.  **Consulta del Cliente:** En el siguiente ciclo de sincronización, el cliente pregunta al servidor por los eventos ocurridos desde la última vez que se conectó, utilizando el último ID de evento que procesó (`lastEventId`).
+4.  **Respuesta del Servidor:** El servidor devuelve una lista con todos los eventos nuevos (aquellos con un ID mayor al `lastEventId` del cliente).
+5.  **Actualización Local:** El cliente procesa cada evento recibido, aplica los cambios a su base de datos Room y actualiza su `lastEventId` para el próximo ciclo.
+
+```mermaid
+sequenceDiagram
+    participant Usuario Web
+    participant Servidor
+    participant Cliente Android
+
+    Usuario Web->>+Servidor: Crear Horario (ID: 8) vía Web
+    Servidor->>Servidor: 1. Guarda Horario 8 en su BD
+    Servidor->>Servidor: 2. Anota en tabla `sync_events`: <br/> "create horario 8" (obtiene ID de evento: 38)
+    deactivate Servidor
+
+    loop Ciclo de Sincronización (Worker)
+        Cliente Android->>+Cliente Android: 3. Lee de SharedPreferences: <br/> "último evento visto = 37"
+        Cliente Android->>+Servidor: 4. GET /sync/events?lastEventId=37
+        Servidor->>+Servidor: 5. Busca eventos donde ID > 37
+        Servidor-->>-Cliente Android: 6. Responde con Evento 38 <br/> y `lastEventId: 38`
+        Cliente Android->>+Cliente Android: 7. Crea el Horario 8 en Room
+        Cliente Android->>+Cliente Android: 8. Guarda en SharedPreferences: <br/> "último evento visto = 38"
+        Note right of Cliente Android: La UI se actualiza al instante
+        deactivate Cliente Android
+    end
+```
