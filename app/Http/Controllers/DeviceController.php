@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Device;
+use App\Models\SyncEvent;
 use App\Enums\AppStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -102,10 +103,24 @@ class DeviceController extends Controller
         ]);
 
         foreach ($validated['apps'] as $deviceAppId => $data) {
-            $device->deviceApps()->where('id', $deviceAppId)->update([
-                'appStatus' => $data['appStatus'],
-                'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
-            ]);
+            $app = $device->deviceApps()->where('id', $deviceAppId)->first();
+            if ($app) {
+                $oldData = $app->toArray();
+                
+                $app->update([
+                    'appStatus' => $data['appStatus'],
+                    'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
+                ]);
+                
+                // Registrar evento de sincronización
+                SyncEvent::recordUpdate(
+                    $device->deviceId,
+                    'app',
+                    $app->packageName,
+                    $app->toArray(),
+                    $oldData
+                );
+            }
         }
 
         // Refrescar el modelo y relaciones
@@ -236,8 +251,21 @@ class DeviceController extends Controller
         }
 
         $validated = $request->validate($rules);
+        
+        // Guardar datos anteriores para el evento
+        $oldData = $deviceApp->toArray();
+        
         $deviceApp->$field = $validated[array_key_first($validated)];
         $deviceApp->save();
+        
+        // Registrar evento de sincronización
+        SyncEvent::recordUpdate(
+            $device->deviceId,
+            'app',
+            $deviceApp->packageName,
+            $deviceApp->toArray(),
+            $oldData
+        );
 
         return response()->json([
             'success' => true,

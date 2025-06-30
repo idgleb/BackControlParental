@@ -32,6 +32,11 @@ Route::delete('/sync/horarios', [SyncController::class, 'deleteHorarios']);
 Route::get('/sync/devices', [SyncController::class, 'getDevices']);
 Route::post('/sync/devices', [SyncController::class, 'postDevices']);
 
+// Nueva API de sincronización basada en eventos
+Route::get('/sync/events', [SyncController::class, 'getEvents']);
+Route::post('/sync/events', [SyncController::class, 'postEvents']);
+Route::get('/sync/status', [SyncController::class, 'getSyncStatus']);
+
 // Rutas para actualización automática (verifican sesión web)
 Route::middleware('web')->group(function () {
     // Rutas para dispositivos

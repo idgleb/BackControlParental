@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Device;
 use App\Models\Horario;
+use App\Models\SyncEvent;
 use App\Enums\DayOfWeek;
 use Illuminate\Http\Request;
 
@@ -62,6 +63,16 @@ class HorarioController extends Controller
         try {
             $horario = Horario::create($validated);
             
+            \Log::debug('Intentando registrar evento de CREACIÓN de horario', ['horario_id' => $horario->idHorario]);
+            // Registrar evento de sincronización
+            SyncEvent::recordCreate(
+                $device->deviceId,
+                'horario',
+                $horario->idHorario,
+                $horario->toArray()
+            );
+            \Log::info('Evento de CREACIÓN de horario registrado con éxito');
+            
             // Si es una petición AJAX, devolver JSON
             if ($request->ajax()) {
                 return response()->json([
@@ -83,6 +94,7 @@ class HorarioController extends Controller
             return back()->with('success', 'Horario creado exitosamente.');
             
         } catch (\Exception $e) {
+            \Log::error('Error registrando evento de horario o creando horario', ['error' => $e->getMessage()]);
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -128,7 +140,21 @@ class HorarioController extends Controller
         $validated['diasDeSemana'] = array_map('intval', $validated['diasDeSemana']);
 
         try {
+            // Guardar datos anteriores para el evento
+            $oldData = $horario->toArray();
+            
             $horario->update($validated);
+            
+            \Log::debug('Intentando registrar evento de ACTUALIZACIÓN de horario', ['horario_id' => $horario->idHorario]);
+            // Registrar evento de sincronización
+            SyncEvent::recordUpdate(
+                $device->deviceId,
+                'horario',
+                $horario->idHorario,
+                $horario->toArray(),
+                $oldData
+            );
+            \Log::info('Evento de ACTUALIZACIÓN de horario registrado con éxito');
             
             // Si es una petición AJAX, devolver JSON
             if ($request->ajax()) {
@@ -151,6 +177,7 @@ class HorarioController extends Controller
             return redirect()->route('horarios.index', $device)->with('success', 'Horario actualizado exitosamente.');
             
         } catch (\Exception $e) {
+            \Log::error('Error registrando evento de horario o actualizando horario', ['error' => $e->getMessage()]);
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -169,7 +196,20 @@ class HorarioController extends Controller
         }
 
         try {
+            // Guardar datos antes de eliminar
+            $oldData = $horario->toArray();
+            
             $horario->delete();
+            
+            \Log::debug('Intentando registrar evento de ELIMINACIÓN de horario', ['horario_id' => $oldData['idHorario']]);
+            // Registrar evento de sincronización
+            SyncEvent::recordDelete(
+                $device->deviceId,
+                'horario',
+                $oldData['idHorario'],
+                $oldData
+            );
+            \Log::info('Evento de ELIMINACIÓN de horario registrado con éxito');
             
             // Si es una petición AJAX, devolver JSON
             if ($request->ajax()) {
@@ -183,6 +223,7 @@ class HorarioController extends Controller
             return back()->with('success', 'Horario eliminado exitosamente.');
             
         } catch (\Exception $e) {
+            \Log::error('Error registrando evento de horario o eliminando horario', ['error' => $e->getMessage()]);
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -359,13 +400,9 @@ class HorarioController extends Controller
         if ($request->user()->cannot('update', $device)) {
             abort(403);
         }
-        \Log::debug('Buscando horario (updateByIdHorario)', [
-            'deviceId' => $device->deviceId,
-            'idHorario' => $idHorario,
-            'query' => $device->horarios()->where('idHorario', $idHorario)->toSql(),
-            'bindings' => $device->horarios()->where('idHorario', $idHorario)->getBindings(),
-        ]);
+        
         $horario = $device->horarios()->where('idHorario', $idHorario)->firstOrFail();
+        
         $validated = $request->validate([
             'nombreDeHorario' => 'required|string|max:255',
             'horaInicio' => 'required|date_format:H:i',
@@ -376,8 +413,24 @@ class HorarioController extends Controller
         ]);
         $validated['isActive'] = $request->has('isActive');
         $validated['diasDeSemana'] = array_map('intval', $validated['diasDeSemana']);
+        
         try {
+            // Guardar datos anteriores para el evento
+            $oldData = $horario->toArray();
+
             $horario->update($validated);
+            
+            \Log::debug('Intentando registrar evento de ACTUALIZACIÓN de horario', ['horario_id' => $horario->idHorario]);
+            // Registrar evento de sincronización
+            SyncEvent::recordUpdate(
+                $device->deviceId,
+                'horario',
+                $horario->idHorario,
+                $horario->toArray(),
+                $oldData
+            );
+            \Log::info('Evento de ACTUALIZACIÓN de horario registrado con éxito');
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => true,
@@ -396,6 +449,7 @@ class HorarioController extends Controller
             }
             return redirect()->route('horarios.index', $device)->with('success', 'Horario actualizado exitosamente.');
         } catch (\Exception $e) {
+            \Log::error('Error registrando evento de horario o actualizando horario', ['error' => $e->getMessage()]);
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -414,15 +468,25 @@ class HorarioController extends Controller
         if ($request->user()->cannot('update', $device)) {
             abort(403);
         }
-        \Log::debug('Buscando horario (destroyByIdHorario)', [
-            'deviceId' => $device->deviceId,
-            'idHorario' => $idHorario,
-            'query' => $device->horarios()->where('idHorario', $idHorario)->toSql(),
-            'bindings' => $device->horarios()->where('idHorario', $idHorario)->getBindings(),
-        ]);
+        
         $horario = $device->horarios()->where('idHorario', $idHorario)->firstOrFail();
+        
         try {
+            // Guardar datos antes de eliminar para el evento
+            $oldData = $horario->toArray();
+
             $horario->delete();
+            
+            \Log::debug('Intentando registrar evento de ELIMINACIÓN de horario', ['horario_id' => $oldData['idHorario']]);
+            // Registrar evento de sincronización
+            SyncEvent::recordDelete(
+                $device->deviceId,
+                'horario',
+                $oldData['idHorario'],
+                $oldData
+            );
+            \Log::info('Evento de ELIMINACIÓN de horario registrado con éxito');
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => true,
@@ -431,6 +495,7 @@ class HorarioController extends Controller
             }
             return back()->with('success', 'Horario eliminado exitosamente.');
         } catch (\Exception $e) {
+            \Log::error('Error registrando evento de horario o eliminando horario', ['error' => $e->getMessage()]);
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
