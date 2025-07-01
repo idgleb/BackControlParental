@@ -536,28 +536,66 @@ class SyncController extends Controller
     {
         $deviceId = $request->query('deviceId');
         $lastEventId = $request->query('lastEventId', 0);
-        $entityTypes = $request->query('types', ['horario', 'app']);
+        $typesParam = $request->query('types', 'horario,app');
+        
+        // Procesar el parámetro types: puede venir como string "horario,app" o como array
+        if (is_string($typesParam)) {
+            $entityTypes = explode(',', $typesParam);
+        } else {
+            $entityTypes = (array) $typesParam;
+        }
 
         if (!$deviceId) {
             return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
         }
 
         try {
+            // Log para debugging
+            Log::debug('getEvents called', [
+                'deviceId' => $deviceId,
+                'lastEventId' => $lastEventId,
+                'entityTypes' => $entityTypes,
+                'typesParam' => $typesParam
+            ]);
+
             // Usar la misma lógica de consulta que getSyncStatus para consistencia
             $eventsQuery = SyncEvent::forDevice($deviceId)
-                ->whereIn('entity_type', (array) $entityTypes)
+                ->whereIn('entity_type', $entityTypes)
                 ->where('id', '>', $lastEventId)
                 ->orderBy('id');
 
             $totalEventsAvailable = (clone $eventsQuery)->count();
             
+            // Test directo sin el scope forDevice
+            $testCount = SyncEvent::where('deviceId', $deviceId)
+                ->whereIn('entity_type', $entityTypes)
+                ->where('id', '>', $lastEventId)
+                ->count();
+            
+            // Log para debugging
+            Log::debug('getEvents query results', [
+                'totalEventsAvailable' => $totalEventsAvailable,
+                'testCountWithoutScope' => $testCount,
+                'deviceId' => $deviceId,
+                'entityTypes' => $entityTypes,
+                'lastEventId' => $lastEventId,
+                'query' => $eventsQuery->toSql(),
+                'bindings' => $eventsQuery->getBindings()
+            ]);
+            
             $events = $eventsQuery
                 ->limit(30)
                 ->get()
                 ->map(function ($event) use ($deviceId) {
-                    $eventData = $event->data ?? [];
+                    $eventData = $event->data;
+                    
+                    // Asegurar que data sea null o un objeto, nunca un array vacío
+                    if (is_array($eventData) && empty($eventData)) {
+                        $eventData = null;
+                    }
+                    
                     // Corregir el deviceId para que nunca sea nulo
-                    $finalDeviceId = $event->deviceId ?? $eventData['deviceId'] ?? $deviceId;
+                    $finalDeviceId = $event->deviceId ?? $deviceId;
 
                     return [
                         'id' => $event->id,
@@ -639,14 +677,16 @@ class SyncController extends Controller
                 );
 
                 foreach ($validated['events'] as $event) {
+                    // Solo aplicar el evento, NO crear un nuevo SyncEvent
+                    // porque el cliente ya tiene este cambio
                     $this->applyEvent($validated['deviceId'], $event);
-                    SyncEvent::create([
+                    
+                    // Log para tracking
+                    Log::debug('Applied event from client', [
                         'deviceId' => $validated['deviceId'],
                         'entity_type' => $event['entity_type'],
                         'entity_id' => $event['entity_id'],
-                        'action' => $event['action'],
-                        'data' => $event['data'] ?? null,
-                        'created_at' => Carbon::parse($event['timestamp']),
+                        'action' => $event['action']
                     ]);
                 }
             });
@@ -823,6 +863,76 @@ class SyncController extends Controller
     }
 
     /**
+     * GET /api/sync/test-events - Método de prueba directa
+     */
+    public function testEvents(Request $request)
+    {
+        $deviceId = $request->query('deviceId');
+        $lastEventId = $request->query('lastEventId', 0);
+        
+        if (!$deviceId) {
+            return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
+        }
+        
+        // Consulta directa sin scopes ni nada complejo
+        $events = \DB::table('sync_events')
+            ->where('deviceId', $deviceId)
+            ->where('id', '>', $lastEventId)
+            ->whereIn('entity_type', ['horario', 'app'])
+            ->orderBy('id')
+            ->limit(5)
+            ->get();
+            
+        return $this->streamedJsonResponse([
+            'deviceId' => $deviceId,
+            'lastEventId' => $lastEventId,
+            'eventsFound' => $events->count(),
+            'events' => $events,
+        ]);
+    }
+
+    /**
+     * GET /api/sync/debug - Método temporal para debugging
+     */
+    public function debugEvents(Request $request)
+    {
+        $deviceId = $request->query('deviceId');
+        $lastEventId = $request->query('lastEventId', 0);
+        
+        if (!$deviceId) {
+            return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
+        }
+        
+        // Contar todos los eventos para este dispositivo
+        $totalEvents = SyncEvent::where('deviceId', $deviceId)->count();
+        
+        // Contar eventos después del lastEventId
+        $eventsAfterLastId = SyncEvent::where('deviceId', $deviceId)
+            ->where('id', '>', $lastEventId)
+            ->count();
+            
+        // Obtener algunos eventos de muestra
+        $sampleEvents = SyncEvent::where('deviceId', $deviceId)
+            ->where('id', '>', $lastEventId)
+            ->limit(5)
+            ->get(['id', 'entity_type', 'entity_id', 'action', 'created_at']);
+            
+        // Verificar tipos únicos de entidades
+        $uniqueEntityTypes = SyncEvent::where('deviceId', $deviceId)
+            ->distinct()
+            ->pluck('entity_type');
+            
+        return $this->streamedJsonResponse([
+            'deviceId' => $deviceId,
+            'totalEventsForDevice' => $totalEvents,
+            'eventsAfterLastId' => $eventsAfterLastId,
+            'lastEventId' => $lastEventId,
+            'uniqueEntityTypes' => $uniqueEntityTypes,
+            'sampleEvents' => $sampleEvents,
+        ]);
+    }
+
+    /**
      * GET /api/sync/status
      */
     public function getSyncStatus(Request $request)
@@ -841,10 +951,12 @@ class SyncController extends Controller
         }
 
         $deviceId = $request->query('deviceId');
+        $clientLastEventId = $request->query('lastEventId', 0);
 
         try {
+            // Contar eventos pendientes basándose en el lastEventId del cliente
             $pendingEvents = SyncEvent::where('deviceId', $deviceId)
-                ->whereNull('synced_at')
+                ->where('id', '>', $clientLastEventId)
                 ->selectRaw('entity_type, count(*) as count')
                 ->groupBy('entity_type')
                 ->pluck('count', 'entity_type')

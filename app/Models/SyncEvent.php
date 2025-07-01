@@ -70,6 +70,7 @@ class SyncEvent extends Model
             'entity_type' => $entityType,
             'entity_id' => $entityId,
             'action' => 'delete',
+            'data' => null,  // Explícitamente null para evitar arrays vacíos
             'previous_data' => $oldData
         ]);
     }

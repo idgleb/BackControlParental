@@ -36,6 +36,8 @@ Route::post('/sync/devices', [SyncController::class, 'postDevices']);
 Route::get('/sync/events', [SyncController::class, 'getEvents']);
 Route::post('/sync/events', [SyncController::class, 'postEvents']);
 Route::get('/sync/status', [SyncController::class, 'getSyncStatus']);
+Route::get('/sync/debug', [SyncController::class, 'debugEvents']); // Temporal para debugging
+Route::get('/sync/test-events', [SyncController::class, 'testEvents']); // Test directo
 
 // Rutas para actualización automática (verifican sesión web)
 Route::middleware('web')->group(function () {
