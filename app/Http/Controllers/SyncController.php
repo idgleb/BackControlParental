@@ -9,566 +9,603 @@ use App\Models\SyncEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
-use JsonException;
 use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
 
 class SyncController extends Controller
 {
+    /**
+     * GET /api/sync/apps
+     */
     public function getApps(Request $request)
     {
-        $deviceId = $request->query('deviceId');
-        $includeIcons = $request->query('includeIcons', 'false') === 'true';
-
-        // Límite dinámico basado en si incluimos íconos o no
-        $defaultLimit = $includeIcons ? 5 : 25;   // 25 sin iconos, 5 con iconos
-        $maxLimit = $includeIcons ? 8 : 30;       // 30 sin iconos, 8 con iconos
-
-        $limit = min((int)$request->query('limit', $defaultLimit), $maxLimit);
-        $offset = max((int)$request->query('offset', 0), 0); // Asegurar que offset no sea negativo
-
-        $query = DeviceApp::query();
-
-        if ($deviceId) {
-            $query->where('deviceId', $deviceId);
-        }
-
-        // Contar total antes de aplicar límites
-        $total = $query->count();
-
-        // Aplicar paginación
-        $apps = $query->skip($offset)
-            ->take($limit)
-            ->get()
-            ->map(function (DeviceApp $app) use ($includeIcons) {
-                // Solo incluir íconos si se solicita explícitamente
-                if ($includeIcons && $app->appIcon !== null) {
-                    $app->appIcon = array_values(unpack('C*', $app->appIcon));
-                } else {
-                    // No incluir el ícono para reducir el tamaño de la respuesta
-                    $app->appIcon = null;
-                }
-
-                if ($app->isSystemApp === 1) {
-                    $app->isSystemApp = true;
-                } else {
-                    $app->isSystemApp = false;
-                }
-
-                return $app;
-            });
-
-        // Log para debug
-        \Log::debug("getApps", [
-            'deviceId' => $deviceId,
-            'limit' => $limit,
-            'offset' => $offset,
-            'total' => $total,
-            'returned' => count($apps),
-            'hasMore' => ($offset + $limit) < $total
+        $validator = Validator::make($request->query(), [
+            'deviceId' => 'required|uuid',
+            'limit' => 'integer|min:1|max:100',
+            'offset' => 'integer|min:0',
+            'includeIcons' => 'boolean',
         ]);
 
-        // Incluir metadatos de paginación
-        $response = [
-            'data' => $apps,
-            'pagination' => [
-                'total' => $total,
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'data' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 400);
+        }
+
+        $deviceId = $request->query('deviceId');
+        $includeIcons = $request->query('includeIcons', 'false') === 'true';
+        $defaultLimit = $includeIcons ? 5 : 25;
+        $maxLimit = $includeIcons ? 8 : 30;
+        $limit = min((int)$request->query('limit', $defaultLimit), $maxLimit);
+        $offset = max((int)$request->query('offset', 0), 0);
+
+        try {
+            $query = DeviceApp::where('deviceId', $deviceId);
+            $total = $query->count();
+            $apps = $query->skip($offset)
+                ->take($limit)
+                ->get()
+                ->map(function (DeviceApp $app) use ($includeIcons) {
+                    if ($includeIcons && $app->appIcon !== null) {
+                        $app->appIcon = array_values(unpack('C*', $app->appIcon));
+                    } else {
+                        $app->appIcon = null;
+                    }
+                    $app->isSystemApp = (bool) $app->isSystemApp;
+                    return [
+                        'deviceId' => $app->deviceId,
+                        'packageName' => $app->packageName,
+                        'appName' => $app->appName,
+                        'appIcon' => $app->appIcon,
+                        'appCategory' => $app->appCategory,
+                        'contentRating' => $app->contentRating,
+                        'isSystemApp' => $app->isSystemApp,
+                        'usageTimeToday' => $app->usageTimeToday,
+                        'timeStempUsageTimeToday' => $app->timeStempUsageTimeToday,
+                        'appStatus' => $app->appStatus,
+                        'dailyUsageLimitMinutes' => $app->dailyUsageLimitMinutes,
+                    ];
+                });
+
+            Log::debug('getApps', [
+                'deviceId' => $deviceId,
                 'limit' => $limit,
                 'offset' => $offset,
-                'hasMore' => ($offset + $limit) < $total
-            ]
-        ];
+                'total' => $total,
+                'returned' => count($apps),
+                'hasMore' => ($offset + $limit) < $total,
+            ]);
 
-        return response()->stream(function () use ($response) {
-            echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-            if (ob_get_level() > 0) {
-                @ob_flush();
-            }
-            flush();
-        }, 200, ['Content-Type' => 'application/json; charset=utf-8']);
+            return $this->streamedJsonResponse([
+                'status' => 'success',
+                'data' => $apps,
+                'hasMore' => ($offset + $limit) < $total,
+                'timestamp' => now()->toIso8601String(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getApps', [
+                'deviceId' => $deviceId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to fetch apps: ' . $e->getMessage(),
+                'data' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 500);
+        }
     }
 
     /**
-     * @throws \Throwable
+     * POST /api/sync/apps
      */
     public function postApps(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            '*.deviceId' => 'required|uuid',
+            '*.packageName' => 'required|string',
+            '*.appName' => 'nullable|string',
+            '*.appIcon' => 'nullable|array',
+            '*.appCategory' => 'nullable|string',
+            '*.contentRating' => 'nullable|string',
+            '*.isSystemApp' => 'boolean',
+            '*.usageTimeToday' => 'integer|min:0',
+            '*.timeStempUsageTimeToday' => 'integer|min:0',
+            '*.appStatus' => 'string|in:DISPONIBLE,BLOQUEADA,LIMITADA',
+            '*.dailyUsageLimitMinutes' => 'integer|min:0',
+        ]);
 
-        DB::transaction(function () use ($request) {
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
 
-            // Delete only the apps belonging to the deviceIds present in the request
-            $deviceIds = collect($request->all())
-                ->pluck('deviceId')
-                ->filter()
-                ->unique();
-            Log::debug("deviceIds", $deviceIds->all());
+        try {
+            DB::transaction(function () use ($request) {
+                foreach ($request->all() as $data) {
+                    $icon = $data['appIcon'] ?? null;
+                    if (is_array($icon)) {
+                        $icon = pack('C*', ...$icon);
+                    }
 
-            if ($deviceIds->isNotEmpty()) {
-                DB::table('device_apps')->whereIn('deviceId', $deviceIds->all())->delete();
-            }
+                    $appName = $data['appName'] ?? 'Sin nombre';
+                    $appStatus = $data['appStatus'] ?? 'DISPONIBLE';
 
-            foreach ($request->all() as $data) {
-                $icon = $data['appIcon'] ?? null;
-                if (is_array($icon)) {
-                    $binaryData = pack('C*', ...$icon);
-                    $icon = $binaryData;
-                    //$icon = base64_encode(pack('C*', ...$icon));
+                    DeviceApp::updateOrCreate(
+                        [
+                            'deviceId' => $data['deviceId'],
+                            'packageName' => $data['packageName'],
+                        ],
+                        [
+                            'appName' => $appName,
+                            'appIcon' => $icon,
+                            'appCategory' => $data['appCategory'],
+                            'contentRating' => $data['contentRating'],
+                            'isSystemApp' => $data['isSystemApp'] ?? false,
+                            'usageTimeToday' => $data['usageTimeToday'] ?? 0,
+                            'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'] ?? 0,
+                            'appStatus' => $appStatus,
+                            'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'] ?? 0,
+                        ]
+                    );
+
+                    SyncEvent::create([
+                        'deviceId' => $data['deviceId'],
+                        'entity_type' => 'app',
+                        'entity_id' => $data['packageName'],
+                        'action' => 'create',
+                        'data' => $data,
+                        'created_at' => now(),
+                    ]);
                 }
+            });
 
-                // Validar que appName no sea null
-                $appName = $data['appName'] ?? 'Sin nombre'; // Valor por defecto si es null
-                if (empty($appName)) {
-                    Log::warning("appName is empty or null for deviceId: {$data['deviceId']}, packageName: {$data['packageName']}");
-                }
+            return $this->streamedJsonResponse(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error in postApps', [
+                'error' => $e->getMessage(),
+            ]);
 
-                // Fix temporal para el error tipográfico
-                $appStatus = $data['appStatus'] ?? 'DISPONIBLE';
-                if ($appStatus === 'DISPONIBE') {
-                    $appStatus = 'DISPONIBLE';
-                    Log::warning("Corrigiendo appStatus de DISPONIBE a DISPONIBLE para {$data['packageName']}");
-                }
-
-                DeviceApp::updateOrCreate(
-                    ['deviceId' => $data['deviceId'], 'packageName' => $data['packageName']],
-                    [
-                        'appName' => $appName,
-                        'appIcon' => $icon,
-                        'appCategory' => $this->stringify($data['appCategory']),
-                        'contentRating' => $this->stringify($data['contentRating']),
-                        'isSystemApp' => $data['isSystemApp'],
-                        'usageTimeToday' => $data['usageTimeToday'],
-                        'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'],
-                        'appStatus' => $appStatus,
-                        'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'],
-                    ]
-                );
-            }
-        });
-        return response()->json(['status' => 'ok']);
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to save apps: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
-     * @throws \Throwable
+     * POST /api/sync/apps/delete
      */
     public function deleteApps(Request $request)
     {
-        DB::transaction(function () use ($request) {
-            $deviceIds = $request->input('deviceId');
+        $validator = Validator::make($request->all(), [
+            'deviceIds' => 'required|array',
+            'deviceIds.*' => 'uuid',
+        ]);
 
-            // Si es un string con un solo ID, pasa a ser un array con ese solo elemento
-            if (is_string($deviceIds)) $deviceIds = [$deviceIds];
-
-            if ($deviceIds && is_array($deviceIds)) {
-                DB::table('device_apps')->whereIn('deviceId', $deviceIds)->delete();
-            }
-        });
-
-        return response()->json(['status' => 'ok']);
-    }
-
-    private function stringify(mixed $value): string|null
-    {
-        if (is_array($value)) {
-            return json_encode($value);
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
         }
 
-        return $value;
+        try {
+            DB::transaction(function () use ($request) {
+                $deviceIds = $request->input('deviceIds');
+                $deleted = DeviceApp::whereIn('deviceId', $deviceIds)->delete();
+
+                foreach ($deviceIds as $deviceId) {
+                    SyncEvent::create([
+                        'deviceId' => $deviceId,
+                        'entity_type' => 'app',
+                        'entity_id' => 'all',
+                        'action' => 'delete',
+                        'created_at' => now(),
+                    ]);
+                }
+
+                Log::debug('deleteApps', [
+                    'deviceIds' => $deviceIds,
+                    'deleted_count' => $deleted,
+                ]);
+            });
+
+            return $this->streamedJsonResponse(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error in deleteApps', [
+                'deviceIds' => $request->input('deviceIds'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to delete apps: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
-
+    /**
+     * GET /api/sync/horarios
+     */
     public function getHorarios(Request $request)
     {
+        $validator = Validator::make($request->query(), [
+            'deviceId' => 'required|uuid',
+            'lastSync' => 'nullable|date',
+            'knownIds' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'data' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 400);
+        }
+
         $deviceId = $request->query('deviceId');
         $lastSync = $request->query('lastSync');
         $knownIds = $request->query('knownIds');
 
-        Log::debug("getHorarios", [
-            'deviceId' => $deviceId,
-            'lastSync' => $lastSync,
-            'knownIds' => $knownIds
-        ]);
-
         try {
-            $query = $deviceId
-                ? Horario::where('deviceId', $deviceId)
-                : Horario::query();
-
+            $query = Horario::where('deviceId', $deviceId);
             if ($lastSync) {
-                $lastSyncDate = \Carbon\Carbon::parse($lastSync);
+                $lastSyncDate = Carbon::parse($lastSync);
                 $query->where('updated_at', '>', $lastSyncDate);
             }
 
-            $horarios = $query->get();
-            $deletedIds = [];
+            $horarios = $query->get()->map(function ($horario) {
+                return [
+                    'deviceId' => $horario->deviceId,
+                    'idHorario' => $horario->idHorario,
+                    'nombreDeHorario' => $horario->nombreDeHorario,
+                    'diasDeSemana' => $horario->diasDeSemana,
+                    'horaInicio' => $horario->horaInicio,
+                    'horaFin' => $horario->horaFin,
+                    'isActive' => (bool) $horario->isActive,
+                ];
+            });
 
-            if ($knownIds && $deviceId) {
-                $knownIdsArray = is_array($knownIds) ? $knownIds : explode(',', $knownIds);
+            $deletedIds = [];
+            if ($knownIds) {
+                $knownIdsArray = explode(',', $knownIds);
                 $currentIds = Horario::where('deviceId', $deviceId)
                     ->pluck('idHorario')
                     ->toArray();
                 $deletedIds = array_diff($knownIdsArray, $currentIds);
             }
 
-            $rawData = $horarios->toArray();
-
-            if ($lastSync && $horarios->isEmpty() && empty($deletedIds)) {
-                Log::debug("getHorarios sin cambios", ['deviceId' => $deviceId]);
-                $response = [
-                    'status' => 'no_changes',
-                    'message' => 'No hay cambios en los horarios',
-                    'deviceId' => $deviceId,
-                    'timestamp' => now()->toIso8601String(),
-                    'data' => [],
-                    'changes' => [
-                        'added' => [],
-                        'updated' => [],
-                        'deleted' => []
-                    ],
-                    'total_changes' => 0
-                ];
-
-                return response()->stream(function () use ($response) {
-                    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                    if (ob_get_level() > 0) {
-                        @ob_flush();
-                    }
-                    flush();
-                }, 200, ['Content-Type' => 'application/json; charset=utf-8']);
-            }
-
-            $response = [
-                'status' => 'success',
-                'data' => $rawData,
-                'changes' => [
-                    'added' => [],
-                    'updated' => [],
-                    'deleted' => array_values($deletedIds)
-                ],
-                'timestamp' => now()->toIso8601String(),
-                'total_changes' => count($rawData) + count($deletedIds)
-            ];
-
-            if ($lastSync) {
-                $lastSyncDate = \Carbon\Carbon::parse($lastSync);
-                foreach ($horarios as $horario) {
-                    if ($horario->created_at > $lastSyncDate) {
-                        $response['changes']['added'][] = $horario->idHorario;
-                    } else {
-                        $response['changes']['updated'][] = $horario->idHorario;
-                    }
-                }
-            }
-
-            Log::debug("getHorarios con cambios", [
+            Log::debug('getHorarios', [
                 'deviceId' => $deviceId,
-                'total_changes' => $response['total_changes'],
-                'added' => count($response['changes']['added']),
-                'updated' => count($response['changes']['updated']),
-                'deleted' => count($response['changes']['deleted'])
+                'lastSync' => $lastSync,
+                'knownIds' => $knownIds,
+                'total' => count($horarios),
+                'deletedIds' => $deletedIds,
             ]);
 
-            return response()->stream(function () use ($response) {
-                echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 200, ['Content-Type' => 'application/json; charset=utf-8']);
-
-        } catch (JsonException $e) {
-            Log::error("JSON Encoding Error in getHorarios: " . $e->getMessage());
-            $errorResp = [
-                'status' => 'error',
-                'message' => 'Failed to fetch horarios',
-                'details' => $e->getMessage()
-            ];
-
-            return response()->stream(function () use ($errorResp) {
-                echo json_encode($errorResp, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 500, ['Content-Type' => 'application/json; charset=utf-8']);
-        } catch (\Exception $e) {
-            Log::error("getHorarios error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $errorResp = [
-                'status' => 'error',
-                'message' => 'Failed to fetch horarios',
-                'details' => $e->getMessage()
-            ];
-
-            return response()->stream(function () use ($errorResp) {
-                echo json_encode($errorResp, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 500, ['Content-Type' => 'application/json; charset=utf-8']);
-        }
-    }
-
-    /**
-     * @throws \Throwable
-     */
-    public function postHorarios(Request $request)
-    {
-        DB::transaction(function () use ($request) {
-
-            // Eliminar solo los horarios del dispositivo específicos presentes en la solicitud
-            $deviceIds = collect($request->all())
-                ->pluck('deviceId')
-                ->filter()
-                ->unique();
-            Log::debug("deviceIds", $deviceIds->all());
-
-            if ($deviceIds->isNotEmpty()) {
-                Log::debug("postHorarios Hay algo en deviceIds");
-                DB::table('horarios')->whereIn('deviceId', $deviceIds->all())->delete();
-                Log::debug("postHorarios DeviceApps borrados");
-            }
-
-            foreach ($request->all() as $data) {
-                Horario::updateOrCreate(
-                    ['deviceId' => $data['deviceId'], 'idHorario' => $data['idHorario'] ?? null],
-                    [
-                        'nombreDeHorario' => $data['nombreDeHorario'],
-                        'diasDeSemana' => $data['diasDeSemana'],
-                        'horaInicio' => $data['horaInicio'],
-                        'horaFin' => $data['horaFin'],
-                        'isActive' => $data['isActive'],
-                    ]
-                );
-            }
-        });
-
-        return response()->json(['status' => 'ok']);
-    }
-
-    /**
-     * @throws \Throwable
-     */
-    public function deleteHorarios(Request $request)
-    {
-        DB::transaction(function () use ($request) {
-            $deviceIds = $request->input('deviceId');
-
-            // Si es un string con un solo ID, pasa a ser un array con ese solo elemento
-            if (is_string($deviceIds)) $deviceIds = [$deviceIds];
-
-            if ($deviceIds && is_array($deviceIds)) {
-                DB::table('horarios')->whereIn('deviceId', $deviceIds)->delete();
-            }
-        });
-
-        return response()->json(['status' => 'ok']);
-    }
-
-
-    public function postDevices(Request $request)
-    {
-        $data = $request->all();
-        \Log::info('postDevices data', $data);
-
-        // Buscar el dispositivo existente
-        $device = Device::where('deviceId', $data['deviceId'] ?? null)->first();
-
-        if ($device) {
-            // Si el dispositivo existe, actualizar los datos y forzar la actualización del timestamp
-            $device->update([
-                'model' => $data['model'] ?? null,
-                'batteryLevel' => $data['batteryLevel'] ?? null,
-            ]);
-
-            // Forzar la actualización del timestamp updated_at
-            $device->touch();
-        } else {
-            // Si no existe, crear uno nuevo
-            Device::create([
-                'deviceId' => $data['deviceId'] ?? null,
-                'model' => $data['model'] ?? null,
-                'batteryLevel' => $data['batteryLevel'] ?? null,
-            ]);
-        }
-
-        return response()->json(['status' => 'ok']);
-    }
-
-    public function getDevices(Request $request)
-    {
-        $deviceId = $request->query('deviceId');
-        Log::debug("getDevices", ['deviceId' => $deviceId]);
-
-        try {
-            $devices = $deviceId
-                ? Device::where('deviceId', $deviceId)->get()
-                : Device::all();
-
-            return response()->stream(function () use ($devices) {
-                echo json_encode($devices, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 200, ['Content-Type' => 'application/json; charset=utf-8']);
-
-        } catch (\Exception $e) {
-            Log::error("getDevices error", ['message' => $e->getMessage()]);
-            $errorResp = [
-                'status' => 'error',
-                'message' => 'Failed to fetch devices',
-                'details' => $e->getMessage()
-            ];
-
-            return response()->stream(function () use ($errorResp) {
-                echo json_encode($errorResp, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 500, ['Content-Type' => 'application/json; charset=utf-8']);
-        }
-    }
-
-    /**
-     * Sincronización moderna basada en eventos
-     * GET /api/sync/events
-     */
-    public function getEvents(Request $request)
-    {
-        // Validar parámetros
-        $validator = Validator::make($request->query(), [
-            'deviceId' => 'required|uuid',
-            'lastEventId' => 'required|integer|min:0',
-            'types' => 'nullable|string',
-            'per_page' => 'integer|min:1|max:100',
-        ], [
-            'types.string' => 'The types parameter must be a string (e.g., "horario,app").',
-        ]);
-
-        // Manejar el parámetro types
-        $typesInput = isset($request->all()['types']) ? $request->all()['types'] : $request->query('types', '');
-        $entityTypes = [];
-
-        if (is_array($typesInput)) {
-            $entityTypes = $typesInput; // Maneja types=horario&types=app o types[]=horario&types[]=app
-        } elseif (is_string($typesInput) && !empty($typesInput)) {
-            $entityTypes = explode(',', $typesInput); // Maneja types=horario,app
-        } else {
-            $entityTypes = ['horario', 'app']; // Valor por defecto
-        }
-
-        // Validar que todos los tipos sean válidos
-        foreach ($entityTypes as $type) {
-            if (!in_array($type, ['horario', 'app'])) {
-                return $this->streamJsonResponse([
-                    'status' => 'error',
-                    'message' => 'Invalid type. Only "horario" and "app" are allowed.',
-                    'events' => [],
-                    'lastEventId' => (int) $request->query('lastEventId', 0),
-                    'hasMore' => false,
-                    'timestamp' => now()->toIso8601String(),
-                ], 400);
-            }
-        }
-
-        if ($validator->fails()) {
-            return $this->streamJsonResponse([
-                'status' => 'error',
-                'message' => $validator->errors()->first(),
-                'events' => [],
-                'lastEventId' => (int) $request->query('lastEventId', 0),
-                'hasMore' => false,
+            return $this->streamedJsonResponse([
+                'status' => count($horarios) || count($deletedIds) ? 'success' : 'no_changes',
+                'data' => $horarios,
+                'hasMore' => false, // Horarios no usa paginación
                 'timestamp' => now()->toIso8601String(),
-            ], 400);
-        }
-
-        $deviceId = $request->query('deviceId');
-        $lastEventId = (int) $request->query('lastEventId', 0);
-        $perPage = (int) $request->query('per_page', 25);
-
-        try {
-            // Verificar si lastEventId está desfasado
-            $maxServerEventId = SyncEvent::max('id') ?? 0;
-            if ($lastEventId > $maxServerEventId) {
-                Log::warning("Client's lastEventId ($lastEventId) is ahead of server's max ($maxServerEventId). Resetting sync.", [
-                    'deviceId' => $deviceId,
-                ]);
-                $lastEventId = 0;
-            }
-
-            // Consultar eventos con paginación
-            $eventsQuery = SyncEvent::forDevice($deviceId)
-                ->whereIn('entity_type', $entityTypes)
-                ->where('id', '>', $lastEventId)
-                ->orderBy('id');
-
-            $events = $eventsQuery->paginate($perPage);
-
-            // Mapear eventos a la estructura deseada
-            $mappedEvents = collect($events->items())->map(function ($event) {
-                return [
-                    'id' => $event->id,
-                    'deviceId' => $event->device_id,
-                    'entity_type' => $event->entity_type,
-                    'entity_id' => $event->entity_id,
-                    'action' => $event->action,
-                    'data' => $event->data ? (object) $event->data : null,
-                    'created_at' => $event->created_at->toIso8601String(),
-                ];
-            })->toArray();
-
-            // Logging para depuración
-            Log::debug('getEvents query', [
-                'deviceId' => $deviceId,
-                'lastEventId_in' => $lastEventId,
-                'lastEventId_out' => $events->isNotEmpty() ? $events->last()->id : $lastEventId,
-                'eventsCount' => count($mappedEvents),
-                'totalEventsAvailable' => $events->total(),
-                'hasMore' => $events->hasMorePages(),
-                'types' => $entityTypes,
             ]);
-
-            // Respuesta
-            $response = [
-                'status' => 'success',
-                'events' => $mappedEvents,
-                'lastEventId' => $events->isNotEmpty() ? $events->last()->id : $lastEventId,
-                'hasMore' => $events->hasMorePages(),
-                'timestamp' => now()->toIso8601String(),
-            ];
-
-            return $this->streamJsonResponse($response);
         } catch (\Exception $e) {
-            Log::error('getEvents error', [
+            Log::error('Error in getHorarios', [
                 'deviceId' => $deviceId,
-                'lastEventId' => $lastEventId,
-                'types' => $entityTypes,
                 'error' => $e->getMessage(),
             ]);
 
-            return $this->streamJsonResponse([
+            return $this->streamedJsonResponse([
                 'status' => 'error',
-                'message' => 'Failed to get events: ' . $e->getMessage(),
-                'events' => [],
-                'lastEventId' => $lastEventId,
-                'hasMore' => false,
+                'message' => 'Failed to fetch horarios: ' . $e->getMessage(),
+                'data' => [],
                 'timestamp' => now()->toIso8601String(),
             ], 500);
         }
     }
 
-    private function streamJsonResponse(array $data, int $status = 200)
+    /**
+     * POST /api/sync/horarios
+     */
+    public function postHorarios(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            '*.deviceId' => 'required|uuid',
+            '*.idHorario' => 'required|integer',
+            '*.nombreDeHorario' => 'required|string',
+            '*.diasDeSemana' => 'array',
+            '*.diasDeSemana.*' => 'integer|min:0|max:6',
+            '*.horaInicio' => 'required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            '*.horaFin' => 'required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            '*.isActive' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
+
+        try {
+            DB::transaction(function () use ($request) {
+                foreach ($request->all() as $data) {
+                    Horario::updateOrCreate(
+                        [
+                            'deviceId' => $data['deviceId'],
+                            'idHorario' => $data['idHorario'],
+                        ],
+                        [
+                            'nombreDeHorario' => $data['nombreDeHorario'],
+                            'diasDeSemana' => $data['diasDeSemana'],
+                            'horaInicio' => $data['horaInicio'],
+                            'horaFin' => $data['horaFin'],
+                            'isActive' => $data['isActive'] ?? false,
+                        ]
+                    );
+
+                    SyncEvent::create([
+                        'deviceId' => $data['deviceId'],
+                        'entity_type' => 'horario',
+                        'entity_id' => $data['idHorario'],
+                        'action' => 'create',
+                        'data' => $data,
+                        'created_at' => now(),
+                    ]);
+                }
+            });
+
+            return $this->streamedJsonResponse(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error in postHorarios', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to save horarios: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/sync/horarios/delete
+     */
+    public function deleteHorarios(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'deviceIds' => 'required|array',
+            'deviceIds.*' => 'uuid',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
+
+        try {
+            DB::transaction(function () use ($request) {
+                $deviceIds = $request->input('deviceIds');
+                $deleted = Horario::whereIn('deviceId', $deviceIds)->delete();
+
+                foreach ($deviceIds as $deviceId) {
+                    SyncEvent::create([
+                        'deviceId' => $deviceId,
+                        'entity_type' => 'horario',
+                        'entity_id' => 'all',
+                        'action' => 'delete',
+                        'created_at' => now(),
+                    ]);
+                }
+
+                Log::debug('deleteHorarios', [
+                    'deviceIds' => $deviceIds,
+                    'deleted_count' => $deleted,
+                ]);
+            });
+
+            return $this->streamedJsonResponse(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error in deleteHorarios', [
+                'deviceIds' => $request->input('deviceIds'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to delete horarios: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/sync/devices
+     */
+    public function getDevices(Request $request)
+    {
+        $validator = Validator::make($request->query(), [
+            'deviceId' => 'required|uuid',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'data' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 400);
+        }
+
+        $deviceId = $request->query('deviceId');
+
+        try {
+            $devices = Device::where('deviceId', $deviceId)->get()->map(function ($device) {
+                return [
+                    'deviceId' => $device->deviceId,
+                    'model' => $device->model,
+                    'batteryLevel' => $device->batteryLevel,
+                    'updated_at' => $device->updated_at->toIso8601String(),
+                ];
+            });
+
+            return $this->streamedJsonResponse([
+                'status' => 'success',
+                'data' => $devices,
+                'timestamp' => now()->toIso8601String(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getDevices', [
+                'deviceId' => $deviceId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to fetch devices: ' . $e->getMessage(),
+                'data' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/sync/devices
+     */
+    public function postDevices(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'deviceId' => 'required|uuid',
+            'model' => 'nullable|string',
+            'batteryLevel' => 'nullable|integer|min:0|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
+
+        try {
+            $data = $request->all();
+            Device::updateOrCreate(
+                ['deviceId' => $data['deviceId']],
+                [
+                    'model' => $data['model'] ?? 'Unknown',
+                    'batteryLevel' => $data['batteryLevel'] ?? null,
+                ]
+            );
+
+            SyncEvent::create([
+                'deviceId' => $data['deviceId'],
+                'entity_type' => 'device',
+                'entity_id' => $data['deviceId'],
+                'action' => 'update',
+                'data' => $data,
+                'created_at' => now(),
+            ]);
+
+            return $this->streamedJsonResponse(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error in postDevices', [
+                'deviceId' => $request->input('deviceId'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to save device: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/sync/events
+     */
+    public function getEvents(Request $request)
+    {
+        $deviceId = $request->query('deviceId');
+        $lastEventId = $request->query('lastEventId', 0);
+        $entityTypes = $request->query('types', ['horario', 'app']);
+
+        if (!$deviceId) {
+            return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
+        }
+
+        try {
+            // Usar la misma lógica de consulta que getSyncStatus para consistencia
+            $eventsQuery = SyncEvent::forDevice($deviceId)
+                ->whereIn('entity_type', (array) $entityTypes)
+                ->where('id', '>', $lastEventId)
+                ->orderBy('id');
+
+            $totalEventsAvailable = (clone $eventsQuery)->count();
+            
+            $events = $eventsQuery
+                ->limit(30)
+                ->get()
+                ->map(function ($event) use ($deviceId) {
+                    $eventData = $event->data ?? [];
+                    // Corregir el deviceId para que nunca sea nulo
+                    $finalDeviceId = $event->deviceId ?? $eventData['deviceId'] ?? $deviceId;
+
+                    return [
+                        'id' => $event->id,
+                        'deviceId' => $finalDeviceId,
+                        'entity_type' => $event->entity_type,
+                        'entity_id' => $event->entity_id,
+                        'action' => $event->action,
+                        'data' => $eventData,
+                        'created_at' => $event->created_at->toIso8601String(),
+                    ];
+                });
+
+            $newLastEventId = $events->isNotEmpty() ? $events->last()['id'] : $lastEventId;
+
+            $response = [
+                'status' => 'success',
+                'events' => $events->toArray(),
+                'lastEventId' => (int) $newLastEventId,
+                'hasMore' => $events->count() < $totalEventsAvailable,
+                'timestamp' => now()->toIso8601String()
+            ];
+
+            return $this->streamedJsonResponse($response);
+
+        } catch (\Exception $e) {
+            Log::error("getEvents error", [
+                'deviceId' => $deviceId,
+                'lastEventId' => $lastEventId,
+                'error' => $e->getMessage()
+            ]);
+
+            return $this->streamedJsonResponse(['error' => 'Failed to get events', 'details' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Helper para enviar respuestas JSON por streaming de forma consistente.
+     */
+    private function streamedJsonResponse(array $data, int $status = 200)
     {
         return response()->stream(function () use ($data) {
             echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
             if (ob_get_level() > 0) {
-                @ob_flush();
+                ob_end_flush();
             }
             flush();
         }, $status, ['Content-Type' => 'application/json; charset=utf-8']);
     }
-
 
     /**
      * Aplicar eventos desde el cliente
@@ -576,8 +613,8 @@ class SyncController extends Controller
      */
     public function postEvents(Request $request)
     {
-        $validated = $request->validate([
-            'deviceId' => 'required|string',
+        $validator = Validator::make($request->all(), [
+            'deviceId' => 'required|uuid',
             'events' => 'required|array',
             'events.*.entity_type' => 'required|in:horario,app,device',
             'events.*.entity_id' => 'required|string',
@@ -586,33 +623,49 @@ class SyncController extends Controller
             'events.*.timestamp' => 'required|date',
         ]);
 
-        // Asegurarse de que el dispositivo exista
-        $device = Device::firstOrCreate(
-            ['deviceId' => $validated['deviceId']],
-            ['model' => 'Unknown'] // Un valor por defecto para el modelo
-        );
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
 
-        DB::transaction(function () use ($validated) {
-            foreach ($validated['events'] as $event) {
-                // Aplicar cada evento según su tipo y acción
-                $this->applyEvent($validated['deviceId'], $event);
+        try {
+            $validated = $request->all();
+            DB::transaction(function () use ($validated) {
+                Device::firstOrCreate(
+                    ['deviceId' => $validated['deviceId']],
+                    ['model' => 'Unknown']
+                );
 
-                // Registrar el evento para otros clientes
-                SyncEvent::create([
-                    'deviceId' => $validated['deviceId'],
-                    'entity_type' => $event['entity_type'],
-                    'entity_id' => $event['entity_id'],
-                    'action' => $event['action'],
-                    'data' => $event['data'] ?? null,
-                    'created_at' => Carbon::parse($event['timestamp'])
-                ]);
-            }
-        });
+                foreach ($validated['events'] as $event) {
+                    $this->applyEvent($validated['deviceId'], $event);
+                    SyncEvent::create([
+                        'deviceId' => $validated['deviceId'],
+                        'entity_type' => $event['entity_type'],
+                        'entity_id' => $event['entity_id'],
+                        'action' => $event['action'],
+                        'data' => $event['data'] ?? null,
+                        'created_at' => Carbon::parse($event['timestamp']),
+                    ]);
+                }
+            });
 
-        return response()->json([
-            'status' => 'success',
-            'processed' => count($validated['events'])
-        ])->header('Connection', 'close');
+            return $this->streamedJsonResponse([
+                'status' => 'success',
+                'processed' => count($validated['events']),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in postEvents', [
+                'deviceId' => $request->input('deviceId'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to process events: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -639,7 +692,6 @@ class SyncController extends Controller
     private function applyHorarioEvent(string $deviceId, array $event)
     {
         $data = $event['data'] ?? [];
-        // Asegurarse de que el idHorario esté en los datos para el updateOrCreate
         if (!isset($data['idHorario'])) {
             $data['idHorario'] = $event['entity_id'];
         }
@@ -647,16 +699,20 @@ class SyncController extends Controller
         switch ($event['action']) {
             case 'create':
             case 'update':
-                // Usamos updateOrCreate para manejar ambos casos de forma segura.
                 Horario::updateOrCreate(
                     [
                         'deviceId' => $deviceId,
-                        'idHorario' => $event['entity_id']
+                        'idHorario' => $event['entity_id'],
                     ],
-                    $data
+                    [
+                        'nombreDeHorario' => $data['nombreDeHorario'] ?? 'Sin nombre',
+                        'diasDeSemana' => $data['diasDeSemana'] ?? [],
+                        'horaInicio' => $data['horaInicio'] ?? '00:00',
+                        'horaFin' => $data['horaFin'] ?? '23:59',
+                        'isActive' => $data['isActive'] ?? false,
+                    ]
                 );
                 break;
-
             case 'delete':
                 Horario::where('deviceId', $deviceId)
                     ->where('idHorario', $event['entity_id'])
@@ -670,19 +726,32 @@ class SyncController extends Controller
      */
     private function applyAppEvent(string $deviceId, array $event)
     {
+        $data = $event['data'] ?? [];
         switch ($event['action']) {
             case 'create':
             case 'update':
-                // Para apps usamos updateOrCreate porque el packageName es la clave
+                $icon = $data['appIcon'] ?? null;
+                if (is_array($icon)) {
+                    $icon = pack('C*', ...$icon);
+                }
                 DeviceApp::updateOrCreate(
                     [
                         'deviceId' => $deviceId,
-                        'packageName' => $event['entity_id']
+                        'packageName' => $event['entity_id'],
                     ],
-                    $event['data'] ?? []
+                    [
+                        'appName' => $data['appName'] ?? 'Sin nombre',
+                        'appIcon' => $icon,
+                        'appCategory' => $data['appCategory'] ?? null,
+                        'contentRating' => $data['contentRating'] ?? null,
+                        'isSystemApp' => $data['isSystemApp'] ?? false,
+                        'usageTimeToday' => $data['usageTimeToday'] ?? 0,
+                        'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'] ?? 0,
+                        'appStatus' => $data['appStatus'] ?? 'DISPONIBLE',
+                        'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'] ?? 0,
+                    ]
                 );
                 break;
-
             case 'delete':
                 DeviceApp::where('deviceId', $deviceId)
                     ->where('packageName', $event['entity_id'])
@@ -698,89 +767,116 @@ class SyncController extends Controller
     {
         switch ($event['action']) {
             case 'update':
-                Device::where('deviceId', $deviceId)->update($event['data']);
+                Device::where('deviceId', $deviceId)->update($event['data'] ?? []);
                 break;
         }
     }
 
     /**
-     * Obtener estado de sincronización
+     * POST /api/sync/events/confirm
+     */
+    public function confirmEvents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'deviceId' => 'required|uuid',
+            'eventIds' => 'required|array',
+            'eventIds.*' => 'integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+            ], 400);
+        }
+
+        $deviceId = $request->input('deviceId');
+        $eventIds = $request->input('eventIds');
+
+        try {
+            $updated = SyncEvent::where('deviceId', $deviceId)
+                ->whereIn('id', $eventIds)
+                ->update(['synced_at' => now()]);
+
+            Log::debug('Events confirmed as synced', [
+                'deviceId' => $deviceId,
+                'eventIds' => $eventIds,
+                'updated_count' => $updated,
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'success',
+                'message' => "$updated events marked as synced",
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in confirmEvents', [
+                'deviceId' => $deviceId,
+                'eventIds' => $eventIds,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to confirm events: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/sync/status
      */
     public function getSyncStatus(Request $request)
     {
-        $deviceId = $request->query('deviceId');
+        $validator = Validator::make($request->query(), [
+            'deviceId' => 'required|uuid',
+        ]);
 
-        if (!$deviceId) {
-            return response()->json(['error' => 'deviceId is required'], 400);
+        if ($validator->fails()) {
+            return $this->streamedJsonResponse([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'pendingEvents' => [],
+                'timestamp' => now()->toIso8601String(),
+            ], 400);
         }
 
+        $deviceId = $request->query('deviceId');
+
         try {
-            // Contar eventos pendientes por tipo
-            $pendingEvents = SyncEvent::forDevice($deviceId)
-                ->unsynced()
+            $pendingEvents = SyncEvent::where('deviceId', $deviceId)
+                ->whereNull('synced_at')
                 ->selectRaw('entity_type, count(*) as count')
                 ->groupBy('entity_type')
                 ->pluck('count', 'entity_type')
-                ->toArray(); // Convertir a array para evitar problemas de serialización
+                ->toArray();
 
-            // Obtener último evento
-            $lastEvent = SyncEvent::forDevice($deviceId)
+            $lastEvent = SyncEvent::where('deviceId', $deviceId)
                 ->latest('id')
                 ->first();
 
             $response = [
                 'status' => 'success',
                 'deviceId' => $deviceId,
-                'pendingEvents' => $pendingEvents ?: new \stdClass(), // Usar objeto vacío si no hay eventos
+                'pendingEvents' => $pendingEvents ?: new \stdClass(),
                 'lastEventId' => $lastEvent?->id ?? 0,
                 'lastEventTime' => $lastEvent?->created_at?->toIso8601String(),
                 'serverTime' => now()->toIso8601String()
             ];
 
-            return response()->stream(function () use ($response) {
-                echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 200, ['Content-Type' => 'application/json; charset=utf-8']);
+            return $this->streamedJsonResponse($response);
 
-        } catch (JsonException $e) {
-            Log::error("JSON Encoding Error in getSyncStatus: " . $e->getMessage());
-            $errorResp = [
-                'status' => 'error',
-                'message' => 'Failed to get sync status',
-                'deviceId' => $deviceId,
-                'serverTime' => now()->toIso8601String()
-            ];
-            return response()->stream(function () use ($errorResp) {
-                echo json_encode($errorResp, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 500, ['Content-Type' => 'application/json; charset=utf-8']);
         } catch (\Exception $e) {
             Log::error("getSyncStatus error", [
                 'deviceId' => $deviceId,
                 'error' => $e->getMessage()
             ]);
 
-            $errorResp = [
+            return $this->streamedJsonResponse([
                 'status' => 'error',
                 'message' => 'Failed to get sync status',
                 'deviceId' => $deviceId,
                 'serverTime' => now()->toIso8601String()
-            ];
-            return response()->stream(function () use ($errorResp) {
-                echo json_encode($errorResp, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                if (ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                flush();
-            }, 500, ['Content-Type' => 'application/json; charset=utf-8']);
+            ], 500);
         }
     }
-
 }

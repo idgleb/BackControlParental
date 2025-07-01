@@ -370,6 +370,15 @@ POST   /api/notifications/{id}/read    # Marcar como leído
 ```http
 GET    /api/sync/devices               # Sincronizar dispositivos
 POST   /api/sync/apps                  # Sincronizar aplicaciones
+GET    /api/sync/horarios              # Obtener horarios de un dispositivo
+POST   /api/sync/horarios              # Enviar lista de horarios
+DELETE /api/sync/horarios              # Eliminar horarios
+
+# Sistema de Eventos (Principal)
+GET    /api/sync/events                # Obtener eventos pendientes
+POST   /api/sync/events                # Enviar eventos locales
+GET    /api/sync/status                # Estado de sincronización
+
 GET    /api/health                     # Estado del servidor
 ```
 
@@ -377,6 +386,157 @@ GET    /api/health                     # Estado del servidor
 ```http
 POST   /api/login                      # Inicio de sesión
 POST   /api/register                   # Registro
+```
+
+## 🔄 Flujo de Sincronización
+
+### **Arquitectura de Sincronización**
+```mermaid
+graph TB
+    subgraph "Cliente Android"
+        A[App Inicia] --> B{¿Primera sync?}
+        B -->|Sí| C[Sync Completa]
+        B -->|No| D[Sync Incremental]
+        
+        C --> E[getHorarios<br/>getApps]
+        D --> F[EventSyncManager]
+        
+        E --> G[NetworkBoundResource]
+        F --> H[GET /sync/status]
+        
+        H --> I{¿Cambios<br/>pendientes?}
+        I -->|Sí| J[GET /sync/events]
+        I -->|No| K[POST /sync/events]
+        
+        J --> L[Aplicar cambios<br/>remotos]
+        L --> K
+        K --> M[Enviar cambios<br/>locales]
+    end
+    
+    subgraph "Servidor Laravel"
+        N[API Endpoints]
+        O[sync_events table]
+        P[Event Controllers]
+        
+        N --> O
+        O --> P
+    end
+    
+    G -.-> N
+    J -.-> N
+    K -.-> N
+    H -.-> N
+```
+
+### **Flujo de Datos Detallado**
+
+#### **1. Sincronización Inicial (Primera vez)**
+```mermaid
+sequenceDiagram
+    participant App as Android App
+    participant NBR as NetworkBoundResource
+    participant API as Laravel API
+    participant DB as Local SQLite
+    
+    App->>NBR: getHorarios(deviceId)
+    Note over NBR: shouldFetch = true<br/>(no hay datos locales)
+    NBR->>API: GET /api/sync/horarios?deviceId=X
+    API-->>NBR: Lista completa de horarios
+    NBR->>DB: Guardar horarios
+    NBR-->>App: Resource.Success(horarios)
+    
+    App->>NBR: getApps(deviceId)
+    NBR->>API: GET /api/sync/apps?deviceId=X
+    API-->>NBR: Lista completa de apps
+    NBR->>DB: Guardar apps
+    NBR-->>App: Resource.Success(apps)
+```
+
+#### **2. Sincronización Incremental (Posteriores)**
+```mermaid
+sequenceDiagram
+    participant Worker as ModernSyncWorker
+    participant ESM as EventSyncManager
+    participant API as Laravel API
+    participant DB as Local SQLite
+    
+    Worker->>ESM: sync()
+    
+    ESM->>API: GET /api/sync/status?deviceId=X
+    API-->>ESM: {pendingEvents: {horario: 2, app: 0}}
+    
+    Note over ESM: Marca "horario" con cambios pendientes
+    
+    ESM->>API: GET /api/sync/events?lastEventId=42
+    API-->>ESM: Lista de eventos nuevos
+    
+    ESM->>DB: Aplicar eventos recibidos
+    Note over DB: - Update horario 123<br/>- Delete horario 456
+    
+    ESM->>DB: Obtener cambios locales pendientes
+    DB-->>ESM: Lista de cambios locales
+    
+    ESM->>API: POST /api/sync/events
+    Note over API: Guardar eventos en sync_events
+    
+    API-->>ESM: Success
+    ESM->>DB: Limpiar flags de cambios pendientes
+```
+
+#### **3. Detección de Cambios y Actualización**
+```mermaid
+graph LR
+    subgraph "Cambio Local"
+        A1[Usuario modifica horario] --> B1[addPendingHorarioId]
+        B1 --> C1[Flag en SharedPreferences]
+    end
+    
+    subgraph "Próxima Sincronización"
+        D1[Worker ejecuta] --> E1[collectLocalEvents]
+        E1 --> F1[POST /sync/events]
+    end
+    
+    subgraph "Cambio Remoto"
+        A2[Otro dispositivo modifica] --> B2[Evento en servidor]
+        B2 --> C2[GET /sync/events detecta]
+        C2 --> D2[Aplica cambio local]
+    end
+    
+    C1 -.-> E1
+    F1 -.-> B2
+```
+
+### **Estados de Sincronización**
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: App inicia
+    
+    Idle --> Syncing: Worker trigger
+    
+    Syncing --> CheckingStatus: GET /sync/status
+    CheckingStatus --> FetchingEvents: Si hay cambios
+    CheckingStatus --> SendingEvents: Si no hay cambios remotos
+    
+    FetchingEvents --> ApplyingEvents: Eventos recibidos
+    ApplyingEvents --> SendingEvents: Eventos aplicados
+    
+    SendingEvents --> Success: Todo OK
+    SendingEvents --> Error: Fallo de red
+    
+    Success --> Idle: Completado
+    Error --> Idle: Retry programado
+    
+    note right of Success
+        - Limpia flags
+        - Actualiza lastEventId
+        - Programa próxima sync
+    end note
+    
+    note right of Error
+        - Mantiene flags
+        - Programa retry
+        - Marca entidades para re-sync
+    end note
 ```
 
 ## 📊 Monitoreo y Logs
