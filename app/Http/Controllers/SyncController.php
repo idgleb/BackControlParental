@@ -44,16 +44,16 @@ class SyncController extends Controller
 
         try {
             $query = DeviceApp::where('deviceId', $deviceId);
-            $total = $query->count();
-            $apps = $query->skip($offset)
-                ->take($limit)
-                ->get()
-                ->map(function (DeviceApp $app) use ($includeIcons) {
-                    if ($includeIcons && $app->appIcon !== null) {
-                        $app->appIcon = array_values(unpack('C*', $app->appIcon));
-                    } else {
-                        $app->appIcon = null;
-                    }
+        $total = $query->count();
+        $apps = $query->skip($offset)
+            ->take($limit)
+            ->get()
+            ->map(function (DeviceApp $app) use ($includeIcons) {
+                if ($includeIcons && $app->appIcon !== null) {
+                $app->appIcon = array_values(unpack('C*', $app->appIcon));
+                } else {
+                    $app->appIcon = null;
+            }
                     $app->isSystemApp = (bool) $app->isSystemApp;
                     return [
                         'deviceId' => $app->deviceId,
@@ -71,17 +71,17 @@ class SyncController extends Controller
                 });
 
             Log::debug('getApps', [
-                'deviceId' => $deviceId,
-                'limit' => $limit,
-                'offset' => $offset,
-                'total' => $total,
-                'returned' => count($apps),
+            'deviceId' => $deviceId,
+            'limit' => $limit,
+            'offset' => $offset,
+            'total' => $total,
+            'returned' => count($apps),
                 'hasMore' => ($offset + $limit) < $total,
-            ]);
+        ]);
 
             return $this->streamedJsonResponse([
                 'status' => 'success',
-                'data' => $apps,
+            'data' => $apps,
                 'hasMore' => ($offset + $limit) < $total,
                 'timestamp' => now()->toIso8601String(),
             ]);
@@ -124,36 +124,36 @@ class SyncController extends Controller
                 'status' => 'error',
                 'message' => $validator->errors()->first(),
             ], 400);
-        }
+            }
 
         try {
             DB::transaction(function () use ($request) {
-                foreach ($request->all() as $data) {
-                    $icon = $data['appIcon'] ?? null;
-                    if (is_array($icon)) {
+            foreach ($request->all() as $data) {
+                $icon = $data['appIcon'] ?? null;
+                if (is_array($icon)) {
                         $icon = pack('C*', ...$icon);
-                    }
+                }
 
                     $appName = $data['appName'] ?? 'Sin nombre';
-                    $appStatus = $data['appStatus'] ?? 'DISPONIBLE';
+                $appStatus = $data['appStatus'] ?? 'DISPONIBLE';
 
-                    DeviceApp::updateOrCreate(
+                DeviceApp::updateOrCreate(
                         [
                             'deviceId' => $data['deviceId'],
                             'packageName' => $data['packageName'],
                         ],
-                        [
-                            'appName' => $appName,
-                            'appIcon' => $icon,
+                    [
+                        'appName' => $appName,
+                        'appIcon' => $icon,
                             'appCategory' => $data['appCategory'],
                             'contentRating' => $data['contentRating'],
                             'isSystemApp' => $data['isSystemApp'] ?? false,
                             'usageTimeToday' => $data['usageTimeToday'] ?? 0,
                             'timeStempUsageTimeToday' => $data['timeStempUsageTimeToday'] ?? 0,
-                            'appStatus' => $appStatus,
+                        'appStatus' => $appStatus,
                             'dailyUsageLimitMinutes' => $data['dailyUsageLimitMinutes'] ?? 0,
-                        ]
-                    );
+                    ]
+                );
 
                     SyncEvent::create([
                         'deviceId' => $data['deviceId'],
@@ -163,8 +163,8 @@ class SyncController extends Controller
                         'data' => $data,
                         'created_at' => now(),
                     ]);
-                }
-            });
+            }
+        });
 
             return $this->streamedJsonResponse(['status' => 'success']);
         } catch (\Exception $e) {
@@ -215,7 +215,7 @@ class SyncController extends Controller
                     'deviceIds' => $deviceIds,
                     'deleted_count' => $deleted,
                 ]);
-            });
+        });
 
             return $this->streamedJsonResponse(['status' => 'success']);
         } catch (\Exception $e) {
@@ -228,7 +228,7 @@ class SyncController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to delete apps: ' . $e->getMessage(),
             ], 500);
-        }
+    }
     }
 
     /**
@@ -284,7 +284,7 @@ class SyncController extends Controller
             }
 
             Log::debug('getHorarios', [
-                'deviceId' => $deviceId,
+                    'deviceId' => $deviceId,
                 'lastSync' => $lastSync,
                 'knownIds' => $knownIds,
                 'total' => count($horarios),
@@ -337,20 +337,20 @@ class SyncController extends Controller
 
         try {
             DB::transaction(function () use ($request) {
-                foreach ($request->all() as $data) {
-                    Horario::updateOrCreate(
+            foreach ($request->all() as $data) {
+                Horario::updateOrCreate(
                         [
                             'deviceId' => $data['deviceId'],
                             'idHorario' => $data['idHorario'],
                         ],
-                        [
-                            'nombreDeHorario' => $data['nombreDeHorario'],
-                            'diasDeSemana' => $data['diasDeSemana'],
-                            'horaInicio' => $data['horaInicio'],
-                            'horaFin' => $data['horaFin'],
+                    [
+                        'nombreDeHorario' => $data['nombreDeHorario'],
+                        'diasDeSemana' => $data['diasDeSemana'],
+                        'horaInicio' => $data['horaInicio'],
+                        'horaFin' => $data['horaFin'],
                             'isActive' => $data['isActive'] ?? false,
-                        ]
-                    );
+                    ]
+                );
 
                     SyncEvent::create([
                         'deviceId' => $data['deviceId'],
@@ -360,8 +360,8 @@ class SyncController extends Controller
                         'data' => $data,
                         'created_at' => now(),
                     ]);
-                }
-            });
+            }
+        });
 
             return $this->streamedJsonResponse(['status' => 'success']);
         } catch (\Exception $e) {
@@ -394,7 +394,7 @@ class SyncController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request) {
+        DB::transaction(function () use ($request) {
                 $deviceIds = $request->input('deviceIds');
                 $deleted = Horario::whereIn('deviceId', $deviceIds)->delete();
 
@@ -425,7 +425,7 @@ class SyncController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to delete horarios: ' . $e->getMessage(),
             ], 500);
-        }
+    }
     }
 
     /**
@@ -475,7 +475,7 @@ class SyncController extends Controller
                 'data' => [],
                 'timestamp' => now()->toIso8601String(),
             ], 500);
-        }
+    }
     }
 
     /**
@@ -641,7 +641,7 @@ class SyncController extends Controller
             if (ob_get_level() > 0) {
                 ob_end_flush();
             }
-            flush();
+                flush();
         }, $status, ['Content-Type' => 'application/json; charset=utf-8']);
     }
 
@@ -670,29 +670,29 @@ class SyncController extends Controller
 
         try {
             $validated = $request->all();
-            DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated) {
                 Device::firstOrCreate(
                     ['deviceId' => $validated['deviceId']],
                     ['model' => 'Unknown']
                 );
 
-                foreach ($validated['events'] as $event) {
+            foreach ($validated['events'] as $event) {
                     // Solo aplicar el evento, NO crear un nuevo SyncEvent
                     // porque el cliente ya tiene este cambio
-                    $this->applyEvent($validated['deviceId'], $event);
-                    
+                $this->applyEvent($validated['deviceId'], $event);
+
                     // Log para tracking
                     Log::debug('Applied event from client', [
-                        'deviceId' => $validated['deviceId'],
-                        'entity_type' => $event['entity_type'],
-                        'entity_id' => $event['entity_id'],
+                    'deviceId' => $validated['deviceId'],
+                    'entity_type' => $event['entity_type'],
+                    'entity_id' => $event['entity_id'],
                         'action' => $event['action']
-                    ]);
-                }
-            });
+                ]);
+            }
+        });
 
             return $this->streamedJsonResponse([
-                'status' => 'success',
+            'status' => 'success',
                 'processed' => count($validated['events']),
             ]);
         } catch (\Exception $e) {
@@ -741,7 +741,7 @@ class SyncController extends Controller
             case 'update':
                 Horario::updateOrCreate(
                     [
-                        'deviceId' => $deviceId,
+                    'deviceId' => $deviceId,
                         'idHorario' => $event['entity_id'],
                     ],
                     [
@@ -869,7 +869,7 @@ class SyncController extends Controller
     {
         $deviceId = $request->query('deviceId');
         $lastEventId = $request->query('lastEventId', 0);
-        
+
         if (!$deviceId) {
             return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
         }
@@ -902,7 +902,7 @@ class SyncController extends Controller
         if (!$deviceId) {
             return $this->streamedJsonResponse(['error' => 'deviceId is required'], 400);
         }
-        
+
         // Contar todos los eventos para este dispositivo
         $totalEvents = SyncEvent::where('deviceId', $deviceId)->count();
         
