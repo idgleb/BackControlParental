@@ -99,7 +99,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (this.isLoading) return;
                 this.isLoading = true;
                 
-                const response = await axios.get('/api/health', {
+                // Usar URL absoluta para compatibilidad con ngrok
+                const baseUrl = window.location.origin;
+                const response = await axios.get(baseUrl + '/api/health', {
                     timeout: 3000
                 });
                 

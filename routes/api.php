@@ -32,6 +32,9 @@ Route::delete('/sync/horarios', [SyncController::class, 'deleteHorarios']);
 Route::get('/sync/devices', [SyncController::class, 'getDevices']);
 Route::post('/sync/devices', [SyncController::class, 'postDevices']);
 
+// Heartbeat para mantener dispositivos online
+Route::post('/devices/{deviceId}/heartbeat', [DeviceController::class, 'heartbeat']);
+
 // Nueva API de sincronización basada en eventos
 Route::get('/sync/events', [SyncController::class, 'getEvents']);
 Route::post('/sync/events', [SyncController::class, 'postEvents']);
@@ -62,7 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
-    
+
     // Rutas para notificaciones completas
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead']);

@@ -47,8 +47,13 @@ class DeviceController extends Controller
             'id' => $device->id,
             'deviceId' => $device->deviceId,
             'model' => $device->model,
+            'batteryLevel' => $device->batteryLevel,
             'status' => $status,
             'last_seen' => $device->last_seen,
+            'latitude' => $device->latitude,
+            'longitude' => $device->longitude,
+            'location_updated_at' => $device->location_updated_at,
+            'ping_interval_seconds' => $device->ping_interval_seconds,
             'apps' => $device->deviceApps->map(fn($app) => $this->serializeDeviceApp($app)),
             'schedules' => $device->horarios->map(function ($schedule) {
                 return [
@@ -157,7 +162,7 @@ class DeviceController extends Controller
         $status = $device->status;
         return response()->json([
             'status' => $status,
-            'last_seen' => $device->updated_at ? $device->updated_at->toISOString() : null,
+            'last_seen' => $device->last_seen ? $device->last_seen->toISOString() : null,
             'updated_at' => $device->updated_at ? $device->updated_at->toISOString() : null
         ]);
     }
@@ -175,7 +180,10 @@ class DeviceController extends Controller
                 'model' => $device->model,
                 'batteryLevel' => $device->batteryLevel,
                 'status' => $status,
-                'last_seen' => $device->updated_at ? $device->updated_at->toISOString() : null,
+                'last_seen' => $device->last_seen ? $device->last_seen->toISOString() : null,
+                'latitude' => $device->latitude,
+                'longitude' => $device->longitude,
+                'location_updated_at' => $device->location_updated_at ? $device->location_updated_at->toISOString() : null,
                 'apps_count' => $device->deviceApps->count(),
                 'schedules_count' => $device->horarios->count(),
                 'created_at' => $device->created_at->toISOString()
@@ -185,6 +193,19 @@ class DeviceController extends Controller
             'success' => true,
             'devices' => $devices
         ]);
+    }
+
+    /**
+     * Show the device location in real-time.
+     */
+    public function location(Request $request, Device $device)
+    {
+        // Verificar que el usuario tenga acceso al dispositivo
+        if (!$request->user() || !$request->user()->devices()->where('devices.deviceId', $device->deviceId)->exists()) {
+            abort(403);
+        }
+        
+        return view('devices.location', compact('device'));
     }
 
     public function destroy(Request $request, Device $device)
@@ -221,6 +242,38 @@ class DeviceController extends Controller
 
             return back()->with('error', 'Error al eliminar el dispositivo');
         }
+    }
+
+    /**
+     * Endpoint de heartbeat para mantener el dispositivo online
+     */
+    public function heartbeat(Request $request, $deviceId)
+    {
+        $device = Device::where('deviceId', $deviceId)->first();
+        
+        if (!$device) {
+            return response()->json(['error' => 'Device not found'], 404);
+        }
+        
+        // Actualizar heartbeat
+        $device->updateHeartbeat();
+        
+        // Si se envía ubicación, actualizarla
+        if ($request->has('latitude') && $request->has('longitude')) {
+            $validated = $request->validate([
+                'latitude' => 'required|numeric|between:-90,90',
+                'longitude' => 'required|numeric|between:-180,180',
+            ]);
+            
+            $device->updateLocation($validated['latitude'], $validated['longitude']);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'status' => $device->status,
+            'server_time' => now()->toISOString(),
+            'next_ping_seconds' => $device->ping_interval_seconds
+        ]);
     }
 
     /**

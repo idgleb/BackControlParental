@@ -13,6 +13,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/devices', [DeviceController::class, 'index'])->name('devices.index');
     Route::post('/devices/link', [DeviceController::class, 'link'])->name('devices.link');
     Route::get('/devices/{device}', [DeviceController::class, 'show'])->name('devices.show');
+    Route::get('/devices/{device}/location', [DeviceController::class, 'location'])->name('devices.location');
     Route::delete('/devices/{device}', [DeviceController::class, 'destroy'])->name('devices.destroy');
     Route::post('/devices/{device}/apps', [DeviceController::class, 'updateApps'])->name('devices.apps.update');
     Route::get('/devices/{device}/horarios', [HorarioController::class, 'index'])->name('horarios.index');

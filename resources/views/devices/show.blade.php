@@ -80,6 +80,21 @@ if (!function_exists('tiempoRelativoAbreviado')) {
                         <!-- El texto se llenará por JS -->
                     </span>
                 </div>
+                
+                <!-- Ubicación -->
+                @if($device->hasLocation())
+                <div class="mt-3 flex items-center space-x-2">
+                    <span class="text-sm font-medium text-gray-700">Ubicación:</span>
+                    <a href="{{ route('devices.location', $device) }}" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+                        📍 {{ number_format($device->latitude, 6) }}, {{ number_format($device->longitude, 6) }}
+                    </a>
+                    @if($device->location_updated_at)
+                        <span class="text-xs text-gray-500">
+                            ({{ tiempoRelativoAbreviado($device->location_updated_at) }})
+                        </span>
+                    @endif
+                </div>
+                @endif
             </div>
             <a href="{{ route('horarios.index', $device) }}"
                class="w-full sm:w-auto rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 text-center">
