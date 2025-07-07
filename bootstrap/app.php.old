@@ -3,7 +3,6 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,15 +11,25 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function ($router) {
-            // Cargar rutas AJAX (ya tienen su propio middleware y prefijo)
-            Route::middleware('web')
+            // Registrar rutas AJAX
+            $router->middleware('web')
+                ->prefix('ajax')
                 ->group(base_path('routes/ajax.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Middleware global
+        $middleware->use([
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+        
+        // Registrar alias de middlewares personalizados
         $middleware->alias([
             'device.auth' => \App\Http\Middleware\DeviceAuthentication::class,
         ]);
+        
+        // Los grupos de middleware vienen por defecto en Laravel 11
+        // 'web' y 'api' ya están configurados
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -7,6 +7,7 @@ use App\Models\Horario;
 use App\Models\SyncEvent;
 use App\Enums\DayOfWeek;
 use Illuminate\Http\Request;
+use App\Models\Notification;
 
 class HorarioController extends Controller
 {
@@ -504,5 +505,276 @@ class HorarioController extends Controller
             }
             return back()->withErrors(['error' => 'Error al eliminar el horario: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * API para App de Padres
+     * Obtener todos los horarios de un dispositivo
+     */
+    public function getDeviceHorarios(Request $request, Device $device)
+    {
+        $this->authorize('view', $device);
+        
+        $horarios = $device->horarios()
+            ->orderBy('horaInicio')
+            ->get()
+            ->map(function ($horario) {
+                return [
+                    'id' => $horario->id,
+                    'idHorario' => $horario->idHorario,
+                    'nombreDeHorario' => $horario->nombreDeHorario,
+                    'diasDeSemana' => $horario->diasDeSemana,
+                    'diasDeSemanaNombres' => $this->getDayNames($horario->diasDeSemana),
+                    'horaInicio' => $horario->horaInicio,
+                    'horaFin' => $horario->horaFin,
+                    'isActive' => $horario->isActive,
+                    'isCurrentlyActive' => $this->isHorarioCurrentlyActive($horario),
+                ];
+            });
+            
+        return response()->json([
+            'success' => true,
+            'data' => $horarios,
+            'summary' => [
+                'totalHorarios' => $horarios->count(),
+                'activeHorarios' => $horarios->where('isActive', true)->count(),
+                'currentlyActive' => $horarios->where('isCurrentlyActive', true)->count(),
+            ],
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+    
+    /**
+     * Crear un nuevo horario
+     */
+    public function createHorario(Request $request, Device $device)
+    {
+        $this->authorize('update', $device);
+        
+        $validated = $request->validate([
+            'nombreDeHorario' => 'required|string|max:255',
+            'diasDeSemana' => 'required|array|min:1',
+            'diasDeSemana.*' => 'integer|min:0|max:6',
+            'horaInicio' => 'required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            'horaFin' => 'required|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            'isActive' => 'boolean',
+        ]);
+        
+        // Generar nuevo ID único para el horario
+        $maxId = $device->horarios()->max('idHorario') ?? 0;
+        $newIdHorario = $maxId + 1;
+        
+        $horario = $device->horarios()->create([
+            'deviceId' => $device->deviceId,
+            'idHorario' => $newIdHorario,
+            'nombreDeHorario' => $validated['nombreDeHorario'],
+            'diasDeSemana' => $validated['diasDeSemana'],
+            'horaInicio' => $validated['horaInicio'],
+            'horaFin' => $validated['horaFin'],
+            'isActive' => $validated['isActive'] ?? true,
+        ]);
+        
+        // Crear evento de sincronización
+        SyncEvent::create([
+            'deviceId' => $device->deviceId,
+            'entity_type' => 'horario',
+            'entity_id' => $horario->idHorario,
+            'action' => 'create',
+            'data' => $horario->toArray(),
+            'created_at' => now(),
+        ]);
+        
+        // Crear notificación
+        Notification::create([
+            'user_id' => $request->user()->id,
+            'device_id' => $device->id,
+            'type' => 'horario_created',
+            'title' => 'Nuevo horario creado',
+            'message' => "Se ha creado el horario '{$horario->nombreDeHorario}' en {$device->model}",
+            'data' => [
+                'idHorario' => $horario->idHorario,
+                'nombreDeHorario' => $horario->nombreDeHorario,
+            ],
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Horario creado exitosamente',
+            'data' => [
+                'id' => $horario->id,
+                'idHorario' => $horario->idHorario,
+                'nombreDeHorario' => $horario->nombreDeHorario,
+                'diasDeSemana' => $horario->diasDeSemana,
+                'horaInicio' => $horario->horaInicio,
+                'horaFin' => $horario->horaFin,
+                'isActive' => $horario->isActive,
+            ],
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+    
+    /**
+     * Actualizar un horario existente
+     */
+    public function updateHorario(Request $request, Device $device, $idHorario)
+    {
+        $this->authorize('update', $device);
+        
+        $validated = $request->validate([
+            'nombreDeHorario' => 'sometimes|string|max:255',
+            'diasDeSemana' => 'sometimes|array|min:1',
+            'diasDeSemana.*' => 'integer|min:0|max:6',
+            'horaInicio' => 'sometimes|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            'horaFin' => 'sometimes|string|regex:/^[0-2][0-9]:[0-5][0-9]$/',
+            'isActive' => 'sometimes|boolean',
+        ]);
+        
+        $horario = $device->horarios()
+            ->where('idHorario', $idHorario)
+            ->firstOrFail();
+            
+        $horario->update($validated);
+        
+        // Crear evento de sincronización
+        SyncEvent::create([
+            'deviceId' => $device->deviceId,
+            'entity_type' => 'horario',
+            'entity_id' => $horario->idHorario,
+            'action' => 'update',
+            'data' => $horario->toArray(),
+            'created_at' => now(),
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Horario actualizado exitosamente',
+            'data' => [
+                'id' => $horario->id,
+                'idHorario' => $horario->idHorario,
+                'nombreDeHorario' => $horario->nombreDeHorario,
+                'diasDeSemana' => $horario->diasDeSemana,
+                'horaInicio' => $horario->horaInicio,
+                'horaFin' => $horario->horaFin,
+                'isActive' => $horario->isActive,
+            ],
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+    
+    /**
+     * Eliminar un horario
+     */
+    public function deleteHorario(Request $request, Device $device, $idHorario)
+    {
+        $this->authorize('update', $device);
+        
+        $horario = $device->horarios()
+            ->where('idHorario', $idHorario)
+            ->firstOrFail();
+            
+        $horarioName = $horario->nombreDeHorario;
+        $horario->delete();
+        
+        // Crear evento de sincronización
+        SyncEvent::create([
+            'deviceId' => $device->deviceId,
+            'entity_type' => 'horario',
+            'entity_id' => $idHorario,
+            'action' => 'delete',
+            'created_at' => now(),
+        ]);
+        
+        // Crear notificación
+        Notification::create([
+            'user_id' => $request->user()->id,
+            'device_id' => $device->id,
+            'type' => 'horario_deleted',
+            'title' => 'Horario eliminado',
+            'message' => "Se ha eliminado el horario '{$horarioName}' de {$device->model}",
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Horario eliminado exitosamente',
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+    
+    /**
+     * Activar/Desactivar un horario
+     */
+    public function toggleHorario(Request $request, Device $device, $idHorario)
+    {
+        $this->authorize('update', $device);
+        
+        $horario = $device->horarios()
+            ->where('idHorario', $idHorario)
+            ->firstOrFail();
+            
+        $horario->update(['isActive' => !$horario->isActive]);
+        
+        // Crear evento de sincronización
+        SyncEvent::create([
+            'deviceId' => $device->deviceId,
+            'entity_type' => 'horario',
+            'entity_id' => $horario->idHorario,
+            'action' => 'update',
+            'data' => ['isActive' => $horario->isActive],
+            'created_at' => now(),
+        ]);
+        
+        $action = $horario->isActive ? 'activado' : 'desactivado';
+        
+        return response()->json([
+            'success' => true,
+            'message' => "Horario {$action} exitosamente",
+            'data' => [
+                'idHorario' => $horario->idHorario,
+                'isActive' => $horario->isActive,
+            ],
+            'timestamp' => now()->toISOString()
+        ]);
+    }
+    
+    /**
+     * Helper: Obtener nombres de días
+     */
+    private function getDayNames($diasDeSemana)
+    {
+        $nombres = [
+            0 => 'Domingo',
+            1 => 'Lunes',
+            2 => 'Martes',
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
+        ];
+        
+        return collect($diasDeSemana)->map(function ($dia) use ($nombres) {
+            return $nombres[$dia] ?? '';
+        })->toArray();
+    }
+    
+    /**
+     * Helper: Verificar si un horario está activo en este momento
+     */
+    private function isHorarioCurrentlyActive($horario)
+    {
+        if (!$horario->isActive) {
+            return false;
+        }
+        
+        $now = now();
+        $currentDay = $now->dayOfWeek;
+        $currentTime = $now->format('H:i');
+        
+        // Verificar si hoy está en los días del horario
+        if (!in_array($currentDay, $horario->diasDeSemana)) {
+            return false;
+        }
+        
+        // Verificar si la hora actual está en el rango
+        return $currentTime >= $horario->horaInicio && $currentTime <= $horario->horaFin;
     }
 } 

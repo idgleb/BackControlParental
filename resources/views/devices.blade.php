@@ -47,20 +47,67 @@ if (!function_exists('svgBateria')) {
         <p class="mt-2 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600">Vincula nuevos dispositivos y gestiona los existentes.</p>
     </div>
 
+    <!-- Mensajes flash -->
+    @if(session('success'))
+        <div class="bg-green-50 p-4 rounded-lg mb-6 border border-green-200">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="bg-red-50 p-4 rounded-lg mb-6 border border-red-200">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-red-800">{{ session('error') }}</p>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Formulario para vincular -->
     <div class="bg-white p-4 sm:p-8 rounded-xl shadow-lg mb-12">
         <h2 class="text-lg sm:text-xl font-semibold mb-4">Vincular un nuevo dispositivo</h2>
+        <p class="text-sm text-gray-600 mb-6">
+            Abre la app Control Parental en el dispositivo del niño y obtén el código de verificación de 6 dígitos.
+        </p>
         <form method="POST" action="{{ route('devices.link') }}" class="flex flex-col sm:flex-row items-stretch sm:items-start gap-4">
             @csrf
             <div class="flex-grow">
-                <label for="deviceId" class="sr-only">ID del Dispositivo</label>
-                <input id="deviceId" name="deviceId" type="text" required placeholder="Introduce el ID del dispositivo"
-                       class="block w-full rounded-md border-0 py-2.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6">
-                @error('deviceId')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                <label for="verification_code" class="block text-sm font-medium text-gray-700 mb-2">
+                    Código de verificación
+                </label>
+                <input id="verification_code" 
+                       name="verification_code" 
+                       type="text" 
+                       required 
+                       placeholder="123-456"
+                       pattern="[0-9]{3}-[0-9]{3}"
+                       maxlength="7"
+                       class="block w-full rounded-md border-0 py-2.5 text-center text-lg font-mono tracking-wider text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6">
+                @error('verification_code')
+                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                @enderror
+                <p class="mt-2 text-xs text-gray-500">
+                    El código expira en 10 minutos
+                </p>
             </div>
             <button type="submit"
                     class="w-full sm:w-auto rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                Vincular
+                Vincular dispositivo
             </button>
         </form>
     </div>
@@ -339,9 +386,30 @@ function showNotification(message, type) {
 
 // Inicializar sistema de actualización automática
 document.addEventListener('DOMContentLoaded', function() {
+    // Sistema de actualización automática
     window.autoRefreshSystem = new AutoRefreshSystem();
     updateAllLastSeen();
     setInterval(updateAllLastSeen, 1000);
+    
+    // Formateo automático del código de verificación
+    const codeInput = document.getElementById('verification_code');
+    if (codeInput) {
+        codeInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^0-9]/g, ''); // Solo números
+            if (value.length > 3) {
+                value = value.slice(0, 3) + '-' + value.slice(3, 6);
+            }
+            e.target.value = value;
+        });
+        
+        // Prevenir caracteres no numéricos
+        codeInput.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            if (!/[0-9]/.test(char) && e.which !== 8 && e.which !== 46) {
+                e.preventDefault();
+            }
+        });
+    }
 });
 
 function updateAllLastSeen() {

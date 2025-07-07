@@ -20,6 +20,20 @@ class Device extends Model
         'location_updated_at',
         'last_seen',
         'ping_interval_seconds',
+        // Campos de autenticación
+        'android_version',
+        'app_version',
+        'manufacturer',
+        'device_fingerprint',
+        'api_token',
+        'verification_code',
+        'verification_expires_at',
+        'is_verified',
+        'is_active',
+        'verified_at',
+        'failed_attempts',
+        'blocked_until',
+        'last_heartbeat',
     ];
 
     protected $casts = [
@@ -27,6 +41,14 @@ class Device extends Model
         'last_seen' => 'datetime',
         'latitude' => 'float',
         'longitude' => 'float',
+        // Nuevos casts
+        'verification_expires_at' => 'datetime',
+        'verified_at' => 'datetime',
+        'blocked_until' => 'datetime',
+        'last_heartbeat' => 'datetime',
+        'is_verified' => 'boolean',
+        'is_active' => 'boolean',
+        'failed_attempts' => 'integer',
     ];
 
     protected static function booted()
