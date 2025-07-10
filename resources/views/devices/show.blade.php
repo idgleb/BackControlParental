@@ -111,8 +111,9 @@ if (!function_exists('tiempoRelativoAbreviado')) {
     @endif
 
     <!-- Formulario de actualización de Apps -->
-    <form id="updateAppsForm" method="POST" action="{{ route('devices.apps.update', $device) }}">
+    <form id="updateAppsForm" method="POST" action="{{ route('ajax.devices.apps.update', $device) }}">
         @csrf
+        @method('PUT')
         <div class="bg-white px-2 sm:px-6 py-8 sm:py-12 shadow-xl rounded-lg">
             <h2 class="text-lg sm:text-xl font-semibold mb-4">Aplicaciones Instaladas</h2>
             
@@ -409,7 +410,7 @@ async function updateDeviceStatus() {
     window.isUpdatingDeviceStatus = true;
     
     try {
-        const response = await axios.get(`/api/devices/${deviceId}/status`, {
+        const response = await axios.get(`/ajax/devices/${deviceId}/status`, {
             timeout: 1500 // Reducir timeout para actualizaciones más rápidas
         });
         
@@ -518,7 +519,7 @@ function renderAppItem(app, appStatusOptions) {
 
 async function fetchAndRenderApps() {
     try {
-        const response = await axios.get(`/api/devices/${deviceId}`);
+        const response = await axios.get(`/ajax/devices/${deviceId}`);
         const device = response.data.device || response.data;
         const apps = device.apps || device.deviceApps || [];
         const appsContainer = document.querySelector('.divide-y.divide-gray-200');
@@ -626,7 +627,7 @@ function instantSaveAppField(appId, fieldName, value, fieldEl) {
     // Construir payload mínimo
     const payload = { app_id: appId };
     payload[fieldName] = value;
-    axios.post(`/api/devices/${deviceId}/apps/${appId}/update-field`, payload, {
+    axios.post(`/ajax/devices/${deviceId}/apps/${appId}/update-field`, payload, {
         headers: {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             'Accept': 'application/json'

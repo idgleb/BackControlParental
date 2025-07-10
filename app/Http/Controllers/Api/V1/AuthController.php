@@ -246,15 +246,17 @@ class AuthController extends Controller
             
             // Si el dispositivo está verificado, devolver o generar token
             if ($device->is_verified) {
-                // Generar token si no existe o siempre generar uno nuevo
+                // NOTA: Siempre generamos un nuevo token porque no podemos recuperar
+                // el token original (está hasheado). Esto significa que cada vez que
+                // se llama a check-status, se invalida el token anterior.
+                // TODO: Considerar una mejor estrategia de tokens (ej: JWT o tokens con TTL)
                 $newToken = Str::random(60);
                 $device->update([
                     'api_token' => hash('sha256', $newToken),
                 ]);
                 
-                Log::info('Device verified from web check - Returning token', [
+                Log::info('Device verified from web check - Generated new token', [
                     'device_id' => $device->deviceId,
-                    'has_token' => !empty($device->api_token),
                     'child_name' => $device->child_name,
                 ]);
                 

@@ -64,7 +64,7 @@
                                 <x-icons.pencil class="w-4 h-4" />
                                 Editar
                             </a>
-                            <form method="POST" action="{{ route('horarios.destroy', ['device' => $device->id, 'idHorario' => $horario->idHorario]) }}" onsubmit="return confirm('¿Seguro que deseas eliminar este horario?');">
+                            <form method="POST" action="{{ route('ajax.devices.horarios.destroy', ['device' => $device->id, 'horario' => $horario->idHorario]) }}" onsubmit="return confirm('¿Seguro que deseas eliminar este horario?');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-red-600 hover:text-red-900 text-sm font-medium flex items-center gap-1">
@@ -88,7 +88,7 @@
         <div class="px-4 sm:px-6 py-4 border-b">
             <h2 class="text-lg sm:text-xl font-semibold">Crear Nuevo Horario</h2>
         </div>
-        <form method="POST" action="{{ route('horarios.store', $device) }}" class="p-4 sm:p-6 space-y-6" id="createHorarioForm">
+        <form method="POST" action="{{ route('ajax.devices.horarios.store', $device) }}" class="p-4 sm:p-6 space-y-6" id="createHorarioForm">
             @csrf
             
             <!-- Nombre del horario -->
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (this.isLoading) return;
                 this.isLoading = true;
                 
-                const response = await axios.get(`/api/devices/{{ $device->id }}/horarios`, {
+                const response = await axios.get(`/ajax/devices/{{ $device->id }}/horarios`, {
                     timeout: 2000
                 });
                 
@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 button.disabled = true;
                 
                 // Enviar petición de eliminación
-                const response = await axios.delete(`/devices/{{ $device->id }}/horarios/by-id/${horarioId}`, {
+                const response = await axios.delete(`/ajax/devices/{{ $device->id }}/horarios/by-id/${horarioId}`, {
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },

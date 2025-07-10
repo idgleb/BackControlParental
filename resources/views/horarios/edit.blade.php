@@ -26,7 +26,7 @@
         <div class="px-4 sm:px-6 py-4 border-b">
             <h2 class="text-lg sm:text-xl font-semibold">Editar Horario: {{ $horario->nombreDeHorario }}</h2>
         </div>
-        <form method="POST" action="{{ route('horarios.update', ['device' => $device->id, 'idHorario' => $horario->idHorario]) }}" class="p-4 sm:p-6 space-y-6" id="editHorarioForm">
+        <form method="POST" action="{{ route('ajax.devices.horarios.update', ['device' => $device->id, 'horario' => $horario->idHorario]) }}" class="p-4 sm:p-6 space-y-6" id="editHorarioForm">
             @csrf
             @method('PUT')
             <!-- Nombre del horario -->
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 if (this.isLoading) return;
                 this.isLoading = true;
-                const response = await axios.get(`/api/devices/${this.deviceId}/horarios/by-id/${this.horarioId}`, { timeout: 2000 });
+                const response = await axios.get(`/ajax/devices/${this.deviceId}/horarios/by-id/${this.horarioId}`, { timeout: 2000 });
                 if (response.data.success) {
                     const currentData = response.data.horario;
                     if (!currentData) {

@@ -40,12 +40,19 @@ Route::middleware(['device.auth'])->group(function () {
     
     // Sincronización
     Route::prefix('sync')->middleware('throttle:device-sync')->group(function () {
-        // Primera sincronización
+        // Apps
         Route::get('/apps', [SyncController::class, 'getApps']);
         Route::post('/apps', [SyncController::class, 'postApps']);
-        Route::get('/schedules', [SyncController::class, 'getSchedules']);
-        Route::post('/schedules', [SyncController::class, 'postSchedules']);
-        Route::get('/device', [SyncController::class, 'getDevice']);
+        Route::delete('/apps', [SyncController::class, 'deleteApps']);
+        
+        // Horarios
+        Route::get('/horarios', [SyncController::class, 'getHorarios']);
+        Route::post('/horarios', [SyncController::class, 'postHorarios']);
+        Route::delete('/horarios', [SyncController::class, 'deleteHorarios']);
+        
+        // Dispositivos
+        Route::get('/devices', [SyncController::class, 'getDevices']);
+        Route::post('/devices', [SyncController::class, 'postDevices']);
         
         // Sincronización incremental
         Route::get('/events', [SyncController::class, 'getEvents']);

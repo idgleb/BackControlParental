@@ -119,7 +119,7 @@
     
     // Función para actualizar los datos
     function updateDeviceData() {
-        axios.get(`{{ route('devices.show', $device) }}`, {
+        axios.get(`{{ route('ajax.devices.show', $device) }}`, {
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'

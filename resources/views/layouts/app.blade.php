@@ -164,7 +164,7 @@ class NotificationSystem {
             if (this.isLoading) return;
             this.isLoading = true;
             
-            const response = await axios.get('/api/notifications', {
+            const response = await axios.get('{{ route('ajax.notifications.recent') }}', {
                 params: {
                     last_check: this.lastCheck.toISOString()
                 },
@@ -341,7 +341,7 @@ class NotificationSystem {
     
     async markAsRead(notificationId) {
         try {
-            const response = await axios.post(`/api/notifications/${notificationId}/read`, {
+            const response = await axios.post(`/ajax/notifications/${notificationId}/mark-read`, {
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 }
@@ -362,7 +362,7 @@ class NotificationSystem {
     
     async markAllAsRead() {
         try {
-            const response = await axios.post('/api/notifications/mark-all-read', {
+            const response = await axios.post('{{ route('ajax.notifications.markAllRead') }}', {
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 }

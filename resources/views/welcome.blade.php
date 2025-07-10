@@ -109,8 +109,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.isLoading = true;
 
                 const [devicesResponse, notificationsResponse] = await Promise.all([
-                    axios.get('/api/devices', { timeout: 2000 }),
-                    axios.get('/api/notifications/count', { timeout: 2000 })
+                    axios.get('{{ route('ajax.devices.index') }}', { timeout: 2000 }),
+                    axios.get('{{ route('ajax.notifications.count') }}', { timeout: 2000 })
                 ]);
 
                 if (devicesResponse.data.success) {

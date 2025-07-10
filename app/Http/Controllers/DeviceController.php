@@ -631,4 +631,47 @@ class DeviceController extends Controller
             'timestamp' => now()->toISOString()
         ]);
     }
+
+    /**
+     * Check device authentication status
+     */
+    public function checkStatus(string $deviceId)
+    {
+        Log::info('Device check status request', ['device_id' => $deviceId]);
+        
+        try {
+            $device = Device::where('device_id', $deviceId)->first();
+            
+            if (!$device) {
+                Log::warning('Device not found', ['device_id' => $deviceId]);
+                return response()->json([
+                    'error' => 'Dispositivo no encontrado',
+                    'message' => 'El dispositivo ha sido eliminado o no existe'
+                ], 404);
+            }
+            
+            // Actualizar heartbeat
+            $device->updateHeartbeat();
+            
+            return response()->json([
+                'success' => true,
+                'device_id' => $device->device_id,
+                'api_token' => $device->api_token,
+                'is_verified' => $device->is_verified,
+                'status' => $device->status,
+                'last_seen' => $device->last_seen ? $device->last_seen->toISOString() : null,
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error checking device status', [
+                'device_id' => $deviceId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'error' => 'Error al verificar el estado del dispositivo',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

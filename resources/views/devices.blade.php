@@ -90,10 +90,10 @@ if (!function_exists('svgBateria')) {
                 <label for="verification_code" class="block text-sm font-medium text-gray-700 mb-2">
                     Código de verificación
                 </label>
-                <input id="verification_code" 
-                       name="verification_code" 
-                       type="text" 
-                       required 
+                <input id="verification_code"
+                       name="verification_code"
+                       type="text"
+                       required
                        placeholder="123-456"
                        pattern="[0-9]{3}-[0-9]{3}"
                        maxlength="7"
@@ -130,7 +130,7 @@ if (!function_exists('svgBateria')) {
                                 {!! svgBateria($device->batteryLevel ?? 0) !!}
                                 <span class="text-xs font-semibold {{ $batteryColor }}">{{ $device->batteryLevel ?? 0 }}%</span>
                             </div>
-                            
+
                             <!-- Estado Online/Offline -->
                             <div class="mt-2 flex items-center space-x-2" id="device-status-{{ $device->id }}">
                                 <span class="text-xs font-medium text-gray-600">Estado:</span>
@@ -182,22 +182,22 @@ class AutoRefreshSystem {
         this.errorCount = 0;
         this.init();
     }
-    
+
     init() {
         this.loadDevices();
         this.startAutoRefresh();
     }
-    
+
     async loadDevices() {
         try {
             // Evitar múltiples peticiones simultáneas
             if (this.isLoading) return;
             this.isLoading = true;
-            
-            const response = await axios.get('/api/devices', {
+
+            const response = await axios.get('{{ route('ajax.devices.index') }}', {
                 timeout: 2000 // Reducir timeout para actualizaciones más rápidas
             });
-            
+
             if (response.data.success) {
                 this.updateDevicesList(response.data.devices);
                 this.errorCount = 0; // Resetear contador de errores en éxito
@@ -209,7 +209,7 @@ class AutoRefreshSystem {
             this.isLoading = false;
         }
     }
-    
+
     handleError() {
         // Si hay errores consecutivos, aumentar el intervalo temporalmente
         this.errorCount = (this.errorCount || 0) + 1;
@@ -221,7 +221,7 @@ class AutoRefreshSystem {
             }, 60000);
         }
     }
-    
+
     updateDevicesList(newDevices) {
         const devicesContainer = document.getElementById('devicesContainer');
         if (!devicesContainer) return;
@@ -245,7 +245,7 @@ class AutoRefreshSystem {
         this.showUpdateIndicator();
         updateAllLastSeen();
     }
-    
+
     formatLastSeen(timestamp) {
         if (!timestamp) return 'Nunca';
         const date = new Date(timestamp);
@@ -273,7 +273,7 @@ class AutoRefreshSystem {
 
         return `Hace ${parts.join(' y ')}`;
     }
-    
+
     showUpdateIndicator() {
         // Crear o actualizar indicador de actualización
         let indicator = document.getElementById('updateIndicator');
@@ -284,7 +284,7 @@ class AutoRefreshSystem {
             indicator.style.transform = 'translateY(100%)';
             document.body.appendChild(indicator);
         }
-        
+
         indicator.innerHTML = `
             <div class="flex items-center">
                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -293,18 +293,18 @@ class AutoRefreshSystem {
                 Actualizado
             </div>
         `;
-        
+
         // Mostrar indicador
         setTimeout(() => {
             indicator.style.transform = 'translateY(0)';
         }, 100);
-        
+
         // Ocultar después de 2 segundos
         setTimeout(() => {
             indicator.style.transform = 'translateY(100%)';
         }, 2000);
     }
-    
+
     startAutoRefresh() {
         setInterval(() => {
             this.loadDevices();
@@ -317,14 +317,14 @@ async function deleteDevice(deviceId, deviceName) {
     if (!confirm(`¿Estás seguro de que quieres desvincular el dispositivo "${deviceName}"?`)) {
         return;
     }
-    
+
     try {
-        const response = await axios.delete(`/devices/${deviceId}`, {
+        const response = await axios.delete(`/ajax/devices/${deviceId}`, {
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             }
         });
-        
+
         if (response.data.success) {
             showNotification('Dispositivo desvinculado exitosamente', 'success');
             // Recargar la lista de dispositivos
@@ -346,11 +346,11 @@ function showNotification(message, type) {
     notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 ${
         type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
     }`;
-    
+
     notification.innerHTML = `
         <div class="flex items-center">
             <div class="flex-shrink-0">
-                ${type === 'success' ? 
+                ${type === 'success' ?
                     '<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>' :
                     '<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>'
                 }
@@ -367,14 +367,14 @@ function showNotification(message, type) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // Animación de entrada
     setTimeout(() => {
         notification.style.transform = 'translateX(0)';
     }, 100);
-    
+
     // Remover automáticamente después de 5 segundos
     setTimeout(() => {
         if (notification.parentElement) {
@@ -390,7 +390,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.autoRefreshSystem = new AutoRefreshSystem();
     updateAllLastSeen();
     setInterval(updateAllLastSeen, 1000);
-    
+
     // Formateo automático del código de verificación
     const codeInput = document.getElementById('verification_code');
     if (codeInput) {
@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             e.target.value = value;
         });
-        
+
         // Prevenir caracteres no numéricos
         codeInput.addEventListener('keypress', function(e) {
             const char = String.fromCharCode(e.which);
