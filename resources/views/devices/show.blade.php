@@ -40,7 +40,7 @@ if (!function_exists('tiempoRelativoAbreviado')) {
                 <p class="mt-2 text-base sm:text-lg text-gray-600">
                     ID del Dispositivo: <span class="font-mono text-xs sm:text-sm bg-gray-100 p-1 rounded">{{ $device->deviceId }}</span>
                 </p>
-                <div class="mt-4 flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                <div id="battery-block" class="mt-4 flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                     <span class="text-sm font-medium text-gray-700">Batería:</span>
                     <div class="flex items-center space-x-2">
                         @php
@@ -83,7 +83,7 @@ if (!function_exists('tiempoRelativoAbreviado')) {
                 
                 <!-- Ubicación -->
                 @if($device->hasLocation())
-                <div class="mt-3 flex items-center space-x-2">
+                <div id="device-location" class="mt-3 flex items-center space-x-2">
                     <span class="text-sm font-medium text-gray-700">Ubicación:</span>
                     <a href="{{ route('devices.location', $device) }}" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
                         📍 {{ number_format($device->latitude, 6) }}, {{ number_format($device->longitude, 6) }}
@@ -400,27 +400,23 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
-// Función para actualizar el estado del dispositivo con Axios
-async function updateDeviceStatus() {
-    const deviceId = {{ $device->id }};
-    const statusElement = document.getElementById(`device-status-${deviceId}`);
-    
-    // Evitar múltiples peticiones simultáneas
-    if (window.isUpdatingDeviceStatus) return;
-    window.isUpdatingDeviceStatus = true;
-    
+// Unificada: Actualiza toda la información del dispositivo, incluyendo estado, batería, ubicación y last seen
+let isUpdatingDeviceData = false;
+async function updateDeviceData() {
+    if (isUpdatingDeviceData) return;
+    isUpdatingDeviceData = true;
     try {
-        const response = await axios.get(`/ajax/devices/${deviceId}/status`, {
-            timeout: 1500 // Reducir timeout para actualizaciones más rápidas
+        const response = await axios.get(`/ajax/devices/${deviceId}`, {
+            timeout: 2000 // 2 segundos
         });
-        
-        // Buscar específicamente el span del estado (el segundo span, no el label)
+        const device = response.data.device || response.data;
+        // Estado online/offline
+        const statusElement = document.getElementById(`device-status-${deviceId}`);
         const statusSpans = statusElement.querySelectorAll('span');
         const statusSpan = statusSpans[1]; // El segundo span es el del estado
         const timeSpan = statusElement.querySelector('.text-sm.text-gray-500');
-        
         if (statusSpan) {
-            if (response.data.status === 'online') {
+            if (device.status === 'online') {
                 statusSpan.innerHTML = '<span class="w-2 h-2 bg-green-400 rounded-full mr-1"></span>Online';
                 statusSpan.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800';
             } else {
@@ -428,49 +424,81 @@ async function updateDeviceStatus() {
                 statusSpan.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800';
             }
         }
-        
         if (timeSpan) {
-            timeSpan.textContent = `(${formatLastSeen(response.data.last_seen)})`;
+            timeSpan.textContent = device.last_seen ? `(${formatLastSeen(device.last_seen)})` : '(Nunca)';
+        }
+        // Batería
+        const batteryLevel = device.batteryLevel ?? 0;
+        const batteryColor = batteryLevel <= 20 ? 'text-red-500' : (batteryLevel <= 50 ? 'text-yellow-500' : 'text-green-500');
+        const batteryIcon = batteryLevel <= 20 ? '🔴' : (batteryLevel <= 50 ? '🟡' : '🟢');
+        const batteryBlock = document.getElementById('battery-block');
+        if (batteryBlock) {
+            const iconEl = batteryBlock.querySelector('.text-lg');
+            if (iconEl) iconEl.textContent = batteryIcon;
+            const percentEl = batteryBlock.querySelector('.font-semibold');
+            if (percentEl) percentEl.textContent = batteryLevel + '%';
+            const barEl = batteryBlock.querySelector('.w-16.h-2 > .h-full');
+            if (barEl) {
+                barEl.style.width = batteryLevel + '%';
+                barEl.className = 'h-full ' + (batteryLevel <= 20 ? 'bg-red-500' : (batteryLevel <= 50 ? 'bg-yellow-500' : 'bg-green-500'));
+            }
+        }
+        // Ubicación (coordenadas y enlace)
+        const ubicacionDiv = document.getElementById('device-location');
+        if (ubicacionDiv) {
+            if (device.latitude && device.longitude) {
+                ubicacionDiv.style.display = '';
+                const link = ubicacionDiv.querySelector('a');
+                if (link) {
+                    link.textContent = `📍 ${parseFloat(device.latitude).toFixed(6)}, ${parseFloat(device.longitude).toFixed(6)}`;
+                }
+                const timeLoc = ubicacionDiv.querySelector('span.text-xs.text-gray-500');
+                if (timeLoc && device.location_updated_at) {
+                    timeLoc.textContent = `(${formatLastSeen(device.location_updated_at)})`;
+                } else if (timeLoc) {
+                    timeLoc.textContent = '';
+                }
+            } else {
+                ubicacionDiv.style.display = '';
+                const link = ubicacionDiv.querySelector('a');
+                if (link) {
+                    link.textContent = 'Sin datos de ubicación';
+                }
+                const timeLoc = ubicacionDiv.querySelector('span.text-xs.text-gray-500');
+                if (timeLoc) {
+                    timeLoc.textContent = '';
+                }
+            }
         }
     } catch (error) {
-        console.error('Error updating device status:', error);
         // No mostrar error al usuario para actualizaciones automáticas
     } finally {
-        window.isUpdatingDeviceStatus = false;
+        isUpdatingDeviceData = false;
     }
 }
-
-// Actualizar estado cada 2 segundos
-setInterval(updateDeviceStatus, 2000);
-
-// Actualizar inmediatamente al cargar la página
-document.addEventListener('DOMContentLoaded', updateDeviceStatus);
+// Actualizar cada 2 segundos
+setInterval(updateDeviceData, 2000);
+document.addEventListener('DOMContentLoaded', updateDeviceData);
 
 function formatLastSeen(timestamp) {
     if (!timestamp) return 'Nunca';
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) return 'Nunca';
-
     const now = new Date();
     let diff = Math.floor((now - date) / 1000); // en segundos
-
     if (diff < 1) return 'Ahora mismo';
-
     const days = Math.floor(diff / 86400);
     diff -= days * 86400;
     const hours = Math.floor(diff / 3600);
     diff -= hours * 3600;
     const minutes = Math.floor(diff / 60);
     const seconds = diff - minutes * 60;
-
     let parts = [];
     if (days > 0) parts.push(`${days} día${days > 1 ? 's' : ''}`);
     if (hours > 0) parts.push(`${hours} h`);
     if (minutes > 0) parts.push(`${minutes} min`);
     if (seconds > 0 && parts.length < 2) parts.push(`${seconds} seg`);
-
     parts = parts.slice(0, 2);
-
     return `Hace ${parts.join(' y ')}`;
 }
 </script>

@@ -166,10 +166,12 @@
                         }
                         
                         document.getElementById('last-update').textContent = timeText;
+                    } else {
+                        document.getElementById('last-update').textContent = 'Sin datos';
                     }
                 } else {
-                    document.getElementById('latitude').textContent = 'Sin datos';
-                    document.getElementById('longitude').textContent = 'Sin datos';
+                    document.getElementById('latitude').textContent = 'Sin datos de ubicación';
+                    document.getElementById('longitude').textContent = 'Sin datos de ubicación';
                     document.getElementById('last-update').textContent = 'Sin datos';
                 }
             }
